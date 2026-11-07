@@ -1,0 +1,15 @@
+# macOS / Xcode
+.DS_Store
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+# Secrets
+*.xcconfig.local
+.env
+# Data (private footage, labels)
+data/
+*.mp4
+*.mov
