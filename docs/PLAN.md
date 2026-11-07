@@ -64,7 +64,7 @@ Three capture paths, all landing on one game timeline:
 ```
 
 - **A. Live stream (always on during a session).** Runs at a low frame rate (7–15fps, tuned in Phase 0 for battery) to drive live play segmentation, voice capture, the scoreboard/score state, and HUD confirmations on Display. The phone records it locally as a full-game proxy timeline.
-- **B. Native clips (quality layer).** The wearer captures 3K clips of key moments: a voice command, the capture button, or the Gen 3 Action button. They're imported from the phone gallery after the game and aligned to the timeline by timestamp plus audio cross-correlation. Highlights prefer B over A when both exist.
+- **B. Native clips (quality layer).** The wearer captures 3K clips of key moments: a voice command, the capture button, the Gen 3 Action button, or Meta's own **Autocapture** ("Hey Meta, start autocapture"; early access since May 2026 on Gen 2/HSTN/Vanguard), which records moments hands-free. See [docs/research/prior-art-sweep.md](research/prior-art-sweep.md). They're imported from the phone gallery after the game and aligned to the timeline by timestamp plus audio cross-correlation. Highlights prefer B over A when both exist.
 - **C. Fixed camera (backbone, optional).** A phone on a tripod, or Veo, Pixellot or XbotGo MP4s. These cover what the wearer didn't see and give the all-field view football coaches want.
 - **Battery plan:** a session manager watches DAT thermal and battery events, degrades fps and resolution gracefully, and prompts case recharges at quarter and half breaks (the case reaches about 50% in ~20 min). It supports **two-pair hand-off** for full games. Phase 0 measures real endurance on Gen 2, Gen 3, Vanguard and Display.
 - **Time sync:** wall-clock from each device, refined by whistle and crowd audio cross-correlation. Fallback is a visual anchor (kickoff, first pitch).
@@ -117,7 +117,7 @@ Three capture paths, all landing on one game timeline:
 | Orchestration | Temporal (or a simpler queue to start) | Long-running, retryable per-game DAGs |
 | Storage / video | S3-compatible object storage, ffmpeg, HLS via CDN | |
 | GPU workers | Serverless GPU (Modal / RunPod) to start | Bursty per-game load |
-| Detection / tracking | RF-DETR, BoT-SORT, supervision | **Avoid Ultralytics (AGPL)** unless we buy an Enterprise license |
+| Detection / tracking | RF-DETR, **roboflow/trackers** (Apache-2.0: ByteTrack/OC-SORT/…), BoT-SORT-style camera-motion compensation, supervision | **Avoid Ultralytics (AGPL)** unless we buy an Enterprise license |
 | Jersey OCR | Koshkina/Elder-style pipeline: legibility filter → pose torso crop → PARSeq → tracklet vote; VLM fallback | 87.4% on SoccerNet; roster constraint helps; needs football/baseball fine-tuning |
 | Face | **YuNet + SFace (OpenCV Zoo)**; AWS Rekognition as an alternative | InsightFace weights are non-commercial; Rekognition puts the BIPA consent burden on us |
 | Re-ID | Torchreid / OSNet (verify weight licenses) | Within-game only unless the person is enrolled |
@@ -221,7 +221,7 @@ Gallery = a query over `Event ⨝ participants ⨝ video_refs`, filterable by pe
 Goal: kill the biggest unknowns on real hardware before building product.
 - [ ] **DAT on Gen 3:** confirm the DAT 1.0 SDK connects to and streams from Ray-Ban Meta Gen 3 (it isn't named in the changelog). If it doesn't, Display is the DAT device and Gen 3 falls back to native-clip import.
 - [ ] **Hardware endurance:** DAT stream at 7/15/30fps on Gen 3 and Display. Measure minutes to thermal/battery cutoff, case-recharge cadence, and the Gen 3 + Display two-pair hand-off (or simultaneous: Gen 3 capturing, Display as HUD).
-- [ ] **Native clip import:** the path from the Meta AI app gallery to our app; timestamp fidelity; audio alignment.
+- [ ] **Native clip import:** the path from the Meta AI app gallery to our app; timestamp fidelity; audio alignment. Also test whether **Autocapture** works on Gen 3 and whether its clips import with usable timestamps.
 - [ ] **Data collection:** record 3–5 real youth football games (glasses + tripod phone), plus a pickup game. Hand-label plays, events and identities. This becomes our eval set (no public egocentric team-game dataset exists).
 - [ ] **Voice-logging prototype:** a stat-keeper wears the glasses, speaks events; measure ASR + parse accuracy outdoors in crowd noise.
 - [ ] **Model bake-off on our footage:** play segmentation, jersey OCR (PARSeq vs VLM), VLM play-type labeling (hosted vs Qwen3-VL), face match at sideline distances.
@@ -270,6 +270,7 @@ Goal: kill the biggest unknowns on real hardware before building product.
 | Portrait-only, head-motion footage hurts CV | High / Medium | Stabilization, BoT-SORT CMC, Vanguard 122° FOV, rely on voice, fixed-camera fusion |
 | League rights (Little League, NFHS) | Medium / Medium | Rights flag, team-private default, org onboarding, no streaming |
 | Privacy incident / bad press | Low–Med / High | Enrolled-only, team-scoped, deletion, clear public stance, no ad SDKs |
+| GameChanger (and Hudl) ship AI auto-stats for football/soccer from fixed cameras | Medium / Medium | Differentiate on wearer POV + voice, face/roster identity, pickup games, and fusion with any camera |
 | Licensing contamination (AGPL/non-commercial weights) | Medium / High | License allow-list in CI; model registry records weight provenance |
 | Cloud GPU / VLM cost per game | Medium / Medium | Segment first, then run VLM only on segments; self-hosted Qwen3-VL fallback; cache |
 

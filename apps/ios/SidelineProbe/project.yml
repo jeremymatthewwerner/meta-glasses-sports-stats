@@ -1,0 +1,50 @@
+# XcodeGen spec for the Phase 0 probe app.
+# Generate the Xcode project with:  brew install xcodegen && xcodegen generate
+# (run from this directory). The generated .xcodeproj is git-ignored.
+name: SidelineProbe
+options:
+  bundleIdPrefix: com.jeremymatthewwerner
+  deploymentTarget:
+    iOS: "17.2"
+  createIntermediateGroups: true
+
+packages:
+  MetaWearablesDAT:
+    url: https://github.com/meta/meta-wearables-dat-ios
+    exactVersion: 1.0.1
+  SidelineCore:
+    path: ../../../packages/SidelineCore
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set your Apple Developer Team ID here (Xcode > Signing & Capabilities),
+    # or in Xcode after generating.
+    DEVELOPMENT_TEAM: ""
+    # Developer Mode: leave META_APP_ID as 0 and the SDK skips attestation.
+    # For a release channel, set both from the Wearables Developer Center.
+    META_APP_ID: "0"
+    CLIENT_TOKEN: ""
+
+targets:
+  SidelineProbe:
+    type: application
+    platform: iOS
+    sources:
+      - path: SidelineProbe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jeremymatthewwerner.sidelineprobe
+        INFOPLIST_FILE: SidelineProbe/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ""
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - package: MetaWearablesDAT
+        product: MWDATCore
+      - package: MetaWearablesDAT
+        product: MWDATCamera
+      - package: MetaWearablesDAT
+        product: MWDATMockDevice
+      - package: SidelineCore
