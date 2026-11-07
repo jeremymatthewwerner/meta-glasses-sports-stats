@@ -13,3 +13,6 @@ DerivedData/
 data/
 *.mp4
 *.mov
+!apps/ios/SidelineProbe/SidelineProbe/Resources/mock-feed.mp4
+# Generated XcodeGen build output
+apps/ios/**/build/

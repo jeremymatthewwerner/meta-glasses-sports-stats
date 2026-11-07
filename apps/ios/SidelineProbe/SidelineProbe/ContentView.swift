@@ -93,6 +93,9 @@ struct ContentView: View {
                     Picker("Model", selection: $mockModel) {
                         ForEach(GlassesModel.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }
+                    Button("Pair mock (sample field video)") {
+                        wearables.enableMock(model: mockModel, feedURL: Bundle.main.url(forResource: "mock-feed", withExtension: "mp4"))
+                    }
                     Button("Pair mock (phone back camera)") { wearables.enableMock(model: mockModel, feedURL: nil) }
                     Button("Pair mock (video file)…") { pickingMockVideo = true }
                     if wearables.mockEnabled {
