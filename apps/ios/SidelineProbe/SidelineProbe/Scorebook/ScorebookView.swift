@@ -12,6 +12,7 @@ struct ScorebookView: View {
     @State private var showBox = false
     @State private var showNewGame = false
     @State private var showHelp = false
+    @State private var showRosters = false
     @FocusState private var typing: Bool
 
     var body: some View {
@@ -56,6 +57,7 @@ struct ScorebookView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollDismissesKeyboard(.immediately)
             }
             .navigationTitle("Scorebook")
             .navigationBarTitleDisplayMode(.inline)
@@ -63,6 +65,7 @@ struct ScorebookView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Button("New game…") { showNewGame = true }
+                        Button("Rosters…") { showRosters = true }
                         Button("Confirm all proposed") { model.confirmAll() }
                         Toggle("Auto-confirm confident plays", isOn: $model.autoConfirm)
                         Picker("Stat rules", selection: Binding(get: { model.game.ruleSet }, set: { model.setRuleSet($0) })) {
@@ -70,6 +73,10 @@ struct ScorebookView: View {
                         }
                         ShareLink("Share game files", items: [model.gameFile, model.utterancesFile])
                     } label: { Image(systemName: "ellipsis.circle") }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { typing = false }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { model.undoLast() } label: { Image(systemName: "arrow.uturn.backward") }
@@ -86,6 +93,7 @@ struct ScorebookView: View {
             .sheet(isPresented: $showNewGame) { NewGameView() }
             .sheet(isPresented: $showHelp) { PhraseHelpView() }
             .sheet(item: $playingClip) { ClipPlayerView(clip: $0) }
+            .sheet(isPresented: $showRosters) { RosterEditorView() }
         }
     }
 

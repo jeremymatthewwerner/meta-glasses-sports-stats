@@ -16,3 +16,11 @@ data/
 !apps/ios/SidelineProbe/SidelineProbe/Resources/mock-feed.mp4
 # Generated XcodeGen build output
 apps/ios/**/build/
+
+# CV (Python) — environment, outputs, downloaded samples
+cv/.venv/
+cv/out/
+cv/samples/
+__pycache__/
+*.egg-info/
+.pytest_cache/

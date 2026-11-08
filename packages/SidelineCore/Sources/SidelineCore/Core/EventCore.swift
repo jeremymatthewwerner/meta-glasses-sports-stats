@@ -39,9 +39,12 @@ public struct VideoRef: Codable, Sendable, Equatable, Hashable {
 public struct TeamInfo: Codable, Sendable, Equatable {
     public var name: String
     public var shortName: String
+    /// Optional; older saved games have none.
+    public var roster: Roster?
 
-    public init(name: String, shortName: String? = nil) {
+    public init(name: String, shortName: String? = nil, roster: Roster? = nil) {
         self.name = name
         self.shortName = shortName ?? String(name.prefix(4)).uppercased()
+        self.roster = roster
     }
 }

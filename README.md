@@ -5,3 +5,6 @@ Record American football, soccer and baseball games with Meta glasses (Ray-Ban M
 - **Plan:** [docs/PLAN.md](docs/PLAN.md)
 - **Research report:** [reports/Meta glasses sports stats landscape.md](reports/Meta%20glasses%20sports%20stats%20landscape.md)
 - **Raw research notes:** [research_notes/](research_notes/)
+- **iOS app (scorebook, Display HUD, game mode, gallery):** [apps/ios/SidelineProbe](apps/ios/SidelineProbe/README.md)
+- **Shared Swift core (football model, stats, parser):** [packages/SidelineCore](packages/SidelineCore)
+- **Computer vision on recordings (detection, tracking, per-play crops):** [cv/](cv/README.md)

@@ -272,6 +272,36 @@ final class ScorebookModel {
             ?? GameRecording(gameID: gameID)
     }
 
+    // MARK: Gallery, rosters, reels
+
+    var gallery: FootballGallery { FootballGallery(game: game) }
+
+    /// Replaces a team's roster from pasted/imported text; returns lines it couldn't read.
+    @discardableResult
+    func setRoster(_ side: TeamSide, text: String) -> [String] {
+        let (roster, problems) = Roster.parse(text)
+        if side == .home { game.home.roster = roster.isEmpty ? nil : roster }
+        else { game.away.roster = roster.isEmpty ? nil : roster }
+        save()
+        return problems
+    }
+
+    /// Stitches the finished clips of `events` into one reel; returns its file.
+    func makeReel(title: String, events: [FootballEvent]) async throws -> URL {
+        let pieces = events.compactMap { e -> ReelExporter.Piece? in
+            guard let ref = e.videoRefs.first, clipIsReady(ref) else { return nil }
+            return ReelExporter.Piece(url: clipURL(ref), start: ref.start, end: ref.end)
+        }
+        let slug = title.lowercased()
+            .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
+            .joined(separator: "-")
+        let stamp = Int(Date().timeIntervalSince1970)
+        let url = gameFolder.appendingPathComponent("reels", isDirectory: true)
+            .appendingPathComponent("reel-\(slug.isEmpty ? "plays" : slug)-\(stamp).mov")
+        _ = try await ReelExporter.export(pieces, to: url)
+        return url
+    }
+
     static var gamesDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("games", isDirectory: true)

@@ -60,6 +60,12 @@ Every play called while recording gets a clip reference: from 15 s before the mo
 
 In the simulator the mock camera plays the bundled field video at 30 fps, so recordings there show 30 fps; real glasses deliver the requested 15.
 
+## Gallery, rosters and highlight reels
+
+- **Gallery tab:** every player named in a play, grouped by team, with what they did ("3 runs · 1 return") and how many clips they have; or plays by event type (touchdowns, turnovers, big plays of 15+ yards or 20+ yard returns, sacks, kicks, penalties). Tap through to the plays and their clips.
+- **Make highlight reel:** stitches the finished clips of any list (one player, all touchdowns, …) into one video without re-encoding, saved to `games/<id>/reels/`, then **Play** or **Share**.
+- **Rosters (Scorebook ⋯ menu):** paste or import a CSV per team, one player per line: `22,Jane Smith,RB` (tabs, `#22 Jane Smith` and a header row also work). Names then appear in the gallery.
+
 ## Without glasses
 
 **Mock glasses** pairs a simulated device through MockDeviceKit. On a phone it can stream the back camera; in the simulator, choose a video file. Mock runs exercise the app flow only. They say nothing about battery or thermal behavior.

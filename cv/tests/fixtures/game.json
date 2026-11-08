@@ -1,0 +1,178 @@
+{
+ "away": {
+  "name": "Hawks",
+  "shortName": "AWAY"
+ },
+ "date": "2026-11-07T22:57:28Z",
+ "events": [
+  {
+   "confidence": 1,
+   "id": "F46060C2-45BC-4004-B601-F6B8399F1BF0",
+   "offense": "away",
+   "play": {
+    "fumbleLost": false,
+    "kickDistance": 50,
+    "kicker": 3,
+    "kind": "kickoff",
+    "returnYards": 20,
+    "returner": 22,
+    "sackers": [],
+    "safety": false,
+    "tacklers": [],
+    "touchdown": false
+   },
+   "source": "typed",
+   "status": "proposed",
+   "transcript": "kickoff by 3 for 50, returned by 22 for 20",
+   "videoRefs": [],
+   "wallTime": "2026-11-07T22:57:35Z"
+  },
+  {
+   "confidence": 1,
+   "id": "A6F158CD-A3C8-49BA-A9CB-9A0DB115F269",
+   "offense": "home",
+   "play": {
+    "fumbleLost": false,
+    "kind": "pass",
+    "passResult": "complete",
+    "passer": 11,
+    "receiver": 80,
+    "sackers": [],
+    "safety": false,
+    "tacklers": [
+     54,
+     21
+    ],
+    "touchdown": false,
+    "yards": 12
+   },
+   "source": "typed",
+   "status": "proposed",
+   "transcript": "11 to 80 for 12, tackled by 54 and 21",
+   "videoRefs": [],
+   "wallTime": "2026-11-07T22:58:00Z"
+  },
+  {
+   "confidence": 1,
+   "id": "0ABA7E2E-1071-48A3-8540-EDABACA39112",
+   "offense": "home",
+   "play": {
+    "fumbleLost": false,
+    "kind": "pass",
+    "passResult": "incomplete",
+    "passer": 11,
+    "receiver": 80,
+    "sackers": [],
+    "safety": false,
+    "tacklers": [],
+    "touchdown": false,
+    "yards": 0
+   },
+   "source": "typed",
+   "status": "proposed",
+   "transcript": "incomplete to 80",
+   "videoRefs": [],
+   "wallTime": "2026-11-07T22:58:01Z"
+  },
+  {
+   "confidence": 1,
+   "id": "2E361656-C6CE-48CC-A351-CE6160C8BD3D",
+   "offense": "home",
+   "play": {
+    "fumbleLost": false,
+    "kickResult": "good",
+    "kind": "extraPoint",
+    "sackers": [],
+    "safety": false,
+    "tacklers": [],
+    "touchdown": false
+   },
+   "source": "typed",
+   "status": "rejected",
+   "transcript": "extra point is good",
+   "videoRefs": [],
+   "wallTime": "2026-11-07T22:58:02Z"
+  },
+  {
+   "confidence": 1,
+   "id": "66A43DDF-AFA8-413D-8495-4A6807B0092C",
+   "offense": "home",
+   "play": {
+    "fumbleLost": false,
+    "kickDistance": 55,
+    "kicker": 5,
+    "kind": "kickoff",
+    "returnYards": 30,
+    "returner": 21,
+    "sackers": [],
+    "safety": false,
+    "tacklers": [],
+    "touchdown": false
+   },
+   "source": "typed",
+   "status": "rejected",
+   "transcript": "kickoff by 5 for 55, returned by 21 for 30",
+   "videoRefs": [],
+   "wallTime": "2026-11-08T01:57:26Z"
+  },
+  {
+   "confidence": 1,
+   "id": "B29DF834-DB0E-4D01-9ECB-14C1069DCFFD",
+   "offense": "home",
+   "play": {
+    "fumbleLost": false,
+    "kickDistance": 60,
+    "kind": "kickoff",
+    "sackers": [],
+    "safety": false,
+    "tacklers": [],
+    "touchdown": false
+   },
+   "source": "typed",
+   "status": "rejected",
+   "transcript": "kickoff touchback",
+   "videoRefs": [],
+   "wallTime": "2026-11-08T01:58:30Z"
+  },
+  {
+   "confidence": 1,
+   "id": "57E21D24-8B29-4E34-97CE-953516C7C8D5",
+   "offense": "home",
+   "play": {
+    "ballCarrier": 22,
+    "fumbleLost": false,
+    "kind": "rush",
+    "sackers": [],
+    "safety": false,
+    "tacklers": [
+     54
+    ],
+    "touchdown": false,
+    "yards": 7
+   },
+   "source": "voice",
+   "status": "proposed",
+   "transcript": "22 run for 7, tackle by 54",
+   "videoRefs": [
+    {
+     "assetID": "glasses-03.mov",
+     "end": 19.30555903804779,
+     "start": 2.3055590380477895
+    }
+   ],
+   "wallTime": "2026-11-08T02:29:50Z"
+  }
+ ],
+ "home": {
+  "name": "Eagles",
+  "shortName": "HOME"
+ },
+ "id": "16577EE5-1816-40C7-B3B5-91E9C21529FC",
+ "openingKickoff": "away",
+ "ruleSet": {
+  "id": "nfhs",
+  "name": "High school (NFHS)",
+  "sackCausingFumbleCreditsSack": false,
+  "sackYardsCountAsRushing": true
+ }
+}
