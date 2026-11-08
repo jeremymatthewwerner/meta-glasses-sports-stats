@@ -17,3 +17,7 @@ iOS app in the Simulator with simulated Meta Ray-Ban Display glasses and a demo 
 |---|---|---|---|---|
 | <img src="docs/screenshots/scorebook.png" width="180" alt="Scorebook: live score, situation, call-a-play button and play list"> | <img src="docs/screenshots/glasses-hud.png" width="180" alt="Scorebook with glasses connected: the lens preview shows the score, situation, last play and Confirm / Call play / Undo buttons"> | <img src="docs/screenshots/game-summary.png" width="180" alt="Game summary: score by quarter, written recap and scoring plays"> | <img src="docs/screenshots/library.png" width="180" alt="Library: season records by team and the list of saved games"> | <img src="docs/screenshots/gallery.png" width="180" alt="Gallery: plays grouped by player, with names from the roster"> |
 | Call plays by voice or typing; score, down and distance update live. | What the wearer sees on the Display lens; plays can be called and confirmed from the glasses. | Box score, recap and scoring plays, built from the calls. | Every game, plus season records. | Plays by player or event type, with clips and highlight reels. |
+
+## License
+
+[MIT](LICENSE). Dependencies keep their own licenses: the Meta Wearables Device Access Toolkit is under Meta's terms, and RF-DETR and PARSeq (used by `cv/`) are Apache-2.0.
