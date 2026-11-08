@@ -84,6 +84,17 @@ Scorebook → **Connect glasses** → **Record game video**, then call every pla
 3. Note battery start/end and any "glasses mic" or recording errors. Files are in Files → On My iPhone → Sideline Probe → games → (game id).
 4. Pass: ≥ 90% of clips contain their play; recording survives the pocket for the full run.
 
+## T9. Player cues in your ear (~10 min, can be done at home)
+
+Scorebook → speaker button → turn on all cues; set **My team** and **My jersey**. Connect the glasses (Bluetooth audio on), then **Connect glasses** for the lens.
+
+1. **Play a sample** in the cue settings: is the voice clearly audible from the glasses' speakers (not the phone)? Try it outdoors or with crowd noise playing.
+2. Call a few plays (lens Call play or phone mic). After each one you should hear the score change (if any), your stats (if you were in the play) and the down and distance, and the play clock should start (40, or 25 after kicks, scores, turnovers and penalties) and count down 20, 10, 5…1, "Time!".
+3. While the clock runs, press **Stop clock** and **Clock** on the lens with the Neural Band. Each should work on the first press. (The lens clock changes only at 40 → under 30 → under 20 → under 10 → under 5 → TIME, to avoid stealing button focus.)
+4. Lock the phone and pocket it for one full 40 s countdown: do the cues keep coming?
+5. Note: did speaking cues ever end the Display session or the recording? (They play over Bluetooth A2DP, not the HFP mic link that ends Display sessions, but this needs confirming.)
+6. Pass: cues audible over noise, countdown on time (±1 s), lens buttons work while the clock runs, no session drops.
+
 ## T5. First real game
 
 Record one real youth football game in **game mode** (lens + glasses mic + video in one session).

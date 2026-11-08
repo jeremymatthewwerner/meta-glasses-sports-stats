@@ -29,6 +29,10 @@ struct ScorebookView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
 
+                PlayClockBar()
+                    .padding(.horizontal)
+                    .padding(.top, 6)
+
                 inputArea
                     .padding()
 

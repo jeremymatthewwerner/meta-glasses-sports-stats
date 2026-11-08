@@ -2,7 +2,11 @@ import Foundation
 
 /// The result of parsing one spoken (or typed) play call.
 public struct ParsedUtterance: Sendable, Equatable {
-    public enum Command: String, Sendable, Equatable { case undo, redo }
+    public enum Command: String, Sendable, Equatable {
+        case undo, redo
+        /// Play clock: start with the default length, a 25 or 40, or stop it.
+        case clock, clock25, clock40, stopClock
+    }
 
     public var raw: String
     public var normalized: String
@@ -49,6 +53,22 @@ public enum FootballVoiceParser {
         }
         if matches(text, #"^(undo|scratch that|cancel|cancel that|delete( that| last)?|never ?mind|take that back)$"#) {
             result.command = .undo
+            return result
+        }
+        if matches(text, #"^(stop|cancel|kill|reset|clear) (the )?(play )?clock$|^(play )?clock (off|stop)$"#) {
+            result.command = .stopClock
+            return result
+        }
+        if matches(text, #"^(start )?(a |the )?(25|twenty five)( second)?( play)? clock$|^(play )?clock (25|twenty five)$"#) {
+            result.command = .clock25
+            return result
+        }
+        if matches(text, #"^(start )?(a |the )?(40|forty)( second)?( play)? clock$|^(play )?clock (40|forty)$"#) {
+            result.command = .clock40
+            return result
+        }
+        if matches(text, #"^(start )?(the )?play ?clock$|^start (the )?clock$|^clock$"#) {
+            result.command = .clock
             return result
         }
 

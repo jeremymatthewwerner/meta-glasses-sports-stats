@@ -42,6 +42,25 @@ final class ScorebookModel {
     /// When the phone mic button was pressed (clip anchor for phone calls).
     @ObservationIgnored private var phoneListenStartedAt = Date()
 
+    // MARK: Player cues (state)
+
+    /// What the wearer hears; saved across launches.
+    var cues: CueSettings = ScorebookModel.loadCues() {
+        didSet {
+            speaker.rate = Float(cues.voiceRate)
+            if let data = try? JSONEncoder().encode(cues) { UserDefaults.standard.set(data, forKey: Self.cuesKey) }
+        }
+    }
+    @ObservationIgnored let speaker = CueSpeaker()
+    private(set) var playClock = PlayClock()
+    /// Whole seconds on the clock face, nil when stopped.
+    private(set) var clockShown: Int?
+    /// The last callout spoken after a play (shown under the clock).
+    private(set) var lastCue: String?
+    @ObservationIgnored private var clockTimer: Timer?
+    @ObservationIgnored private var lastClockTick = Date()
+    private static let cuesKey = "cueSettings"
+
     init() {
         let loadedGame: FootballGame
         if let saved = Self.loadLatest() {
@@ -54,6 +73,7 @@ final class ScorebookModel {
         recording = Self.loadRecording(for: loadedGame.id)
         importDroppedCVReport()
         refreshLibrary()
+        speaker.rate = Float(cues.voiceRate)
     }
 
     var state: FootballGameState { game.state }
@@ -89,7 +109,17 @@ final class ScorebookModel {
             text: trimmed, source: source, normalized: parsed.normalized, summary: "",
             confidence: parsed.confidence, notes: [], eventID: nil, outcome: "not understood")
 
-        if parsed.command == .undo {
+        let before = game.state
+        if let clock = parsed.command, [.clock, .clock25, .clock40, .stopClock].contains(clock) {
+            switch clock {
+            case .clock25: startPlayClock(25)
+            case .clock40: startPlayClock(40)
+            case .stopClock: stopPlayClock()
+            default: startPlayClock()
+            }
+            entry.outcome = "clock"
+            entry.summary = clock == .stopClock ? "play clock stopped" : "play clock started"
+        } else if parsed.command == .undo {
             let undone = history.undo(in: &game)
             entry.outcome = "undo"
             entry.summary = undone.map { "undid: \($0.summary)" } ?? "nothing to undo"
@@ -119,6 +149,7 @@ final class ScorebookModel {
             entry.eventID = event.id
             entry.outcome = "added"
             entry.summary = event.summary
+            cuesAfter(event, before: before, anchor: anchor)
         }
         entry.notes = notes
         lastNotes = notes
@@ -172,6 +203,10 @@ final class ScorebookModel {
             hud.onUndo = { [weak self] in self?.undoLast() }
             hud.onRedo = { [weak self] in self?.redoLast() }
             hud.onCallPlay = { [weak self] in self?.callPlayFromLens() }
+            hud.onClock = { [weak self] in
+                guard let self else { return }
+                if self.playClock.isRunning { self.stopPlayClock() } else { self.startPlayClock() }
+            }
             hud.onDoneListening = { [weak self] in self?.lensCall.finish() }
             hud.onCancelListening = { [weak self] in self?.lensCall.cancel() }
             hud.onRecordingFinished = { [weak self] file, frames, error in
@@ -394,6 +429,72 @@ final class ScorebookModel {
             .appendingPathComponent("reel-\(slug.isEmpty ? "plays" : slug)-\(stamp).mov")
         _ = try await ReelExporter.export(pieces, to: url)
         return url
+    }
+
+    // MARK: Player cues
+
+    private static func loadCues() -> CueSettings {
+        UserDefaults.standard.data(forKey: cuesKey).flatMap { try? JSONDecoder().decode(CueSettings.self, from: $0) } ?? CueSettings()
+    }
+
+    /// Muted while a play is being called, so the mic doesn't hear the cue.
+    private var isListeningAnywhere: Bool { speech.isListening || lensCall.isListening }
+
+    /// Starts (or restarts) the play clock. `seconds` nil uses the rule's
+    /// usual length; `date` can be in the past (backdated to the whistle).
+    func startPlayClock(_ seconds: TimeInterval? = nil, at date: Date = Date(), announce: Bool = true) {
+        let length = seconds ?? (cues.clockRule == .twentyFive ? 25 : 40)
+        playClock.start(length, at: date)
+        lastClockTick = max(date, Date())     // backdated marks already passed aren't spoken
+        if announce, cues.playClockVoice, !isListeningAnywhere { speaker.say("\(Int(length)) clock", urgent: true) }
+        clockTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.clockTick() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        clockTimer = timer
+        clockTick()
+    }
+
+    func stopPlayClock() {
+        clockTimer?.invalidate()
+        clockTimer = nil
+        playClock.stop()
+        clockShown = nil
+        hud.setClock(nil)
+    }
+
+    private func clockTick() {
+        let now = Date()
+        if cues.playClockVoice, !isListeningAnywhere,
+           let mark = playClock.marksCrossed(cues.countdownMarks, from: lastClockTick, to: now).last {
+            speaker.say(CueComposer.countdown(mark), urgent: true)   // only the latest if ticks were late
+        }
+        lastClockTick = now
+        clockShown = playClock.display(at: now)
+        hud.setClock(playClock.lensText(at: now))
+        // Leave "0" up briefly, then clear.
+        if let left = playClock.remaining(at: now), left <= 0,
+           let started = playClock.startedAt, now.timeIntervalSince(started) > playClock.length + 4 {
+            stopPlayClock()
+        }
+    }
+
+    /// After a play is added: maybe start the clock, then speak the callouts.
+    private func cuesAfter(_ event: FootballEvent, before: FootballGameState, anchor: Date) {
+        if cues.autoStartClock, !game.isOver {
+            let length = PlayClock.length(after: event, before: before, after: game.state, rule: cues.clockRule)
+            startPlayClock(length, at: anchor, announce: false)
+        }
+        if let text = CueComposer.afterEvent(event, game: game, before: before, settings: cues) {
+            // The mic has stopped by the time a call is submitted; speak after a beat.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard let self, !self.isListeningAnywhere else { return }
+                self.speaker.say(text)
+                self.lastCue = text
+            }
+        }
     }
 
     // MARK: Web library

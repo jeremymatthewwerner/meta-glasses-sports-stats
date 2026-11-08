@@ -70,6 +70,8 @@ final class GlassesHUD {
     var onUndo: (() -> Void)?
     var onRedo: (() -> Void)?
     var onCallPlay: (() -> Void)?
+    /// Lens "Clock" button: start the play clock, or stop it while running.
+    var onClock: (() -> Void)?
     var onDoneListening: (() -> Void)?
     var onCancelListening: (() -> Void)?
 
@@ -79,6 +81,8 @@ final class GlassesHUD {
     private var speechHandler: ((String, Bool) -> Void)?
     private var tokens = ListenerTokenBag()
     private var game: FootballHUD?
+    /// Play clock on the lens ("40", "under 10", "TIME"), nil when stopped.
+    private var clock: String?
     private var shown: Lens?
     private var queued: Lens?
     private var sending = false
@@ -89,6 +93,7 @@ final class GlassesHUD {
         var game: FootballHUD
         var voice: Voice
         var recording: Bool
+        var clock: String?
     }
 
     var isOn: Bool { if case .on = status { true } else { false } }
@@ -300,12 +305,12 @@ final class GlassesHUD {
         }
         RunLoop.main.add(timer, forMode: .common)
         recordingTimer = timer
-        if let game { send(Lens(game: game, voice: voice, recording: true)) }
+        if let game { send(Lens(game: game, voice: voice, recording: true, clock: clock)) }
     }
 
     func stopRecording() {
         endRecording()
-        if let game { send(Lens(game: game, voice: voice, recording: false)) }
+        if let game { send(Lens(game: game, voice: voice, recording: false, clock: clock)) }
     }
 
     /// Seconds into the current recording for wall-clock `date`.
@@ -341,13 +346,20 @@ final class GlassesHUD {
 
     func setVoice(_ v: Voice) {
         voice = v
-        if let game { send(Lens(game: game, voice: v, recording: isRecording)) }
+        if let game { send(Lens(game: game, voice: v, recording: isRecording, clock: clock)) }
     }
 
     /// Sends the HUD if it changed.
     func show(_ hud: FootballHUD) {
         game = hud
-        send(Lens(game: hud, voice: voice, recording: isRecording))
+        send(Lens(game: hud, voice: voice, recording: isRecording, clock: clock))
+    }
+
+    /// Updates the play clock on the lens (sent only when the text changes).
+    func setClock(_ text: String?) {
+        guard text != clock else { return }
+        clock = text
+        if let game { send(Lens(game: game, voice: voice, recording: isRecording, clock: text)) }
     }
 
     /// Sends are serialized; if one is in flight, only the newest pending
@@ -386,11 +398,15 @@ final class GlassesHUD {
         let call = action { $0.onCallPlay?() }
         let done = action { $0.onDoneListening?() }
         let cancel = action { $0.onCancelListening?() }
+        let clockToggle = action { $0.onClock?() }
 
         return FlexBox(direction: .column, spacing: 6, alignment: .start, crossAlignment: .stretch,
                        padding: EdgeInsets(all: 12)) {
             Text(hud.scoreLine, style: .heading)
             Text(hud.situationLine, style: .body, color: .secondary)
+            if let c = lens.clock {
+                Text("Play clock: \(c)", style: .heading)
+            }
 
             if case .listening(let heard, let source) = lens.voice {
                 FlexBox(direction: .column, spacing: 2, padding: EdgeInsets(all: 8)) {
@@ -426,6 +442,7 @@ final class GlassesHUD {
                     if hud.redoPlay != nil {
                         Button(label: "Redo", style: .outline, onClick: redo)
                     }
+                    Button(label: lens.clock == nil ? "Clock" : "Stop clock", style: .outline, onClick: clockToggle)
                 }
                 if case .note(let note) = lens.voice {
                     Text(note, style: .meta, color: .secondary)

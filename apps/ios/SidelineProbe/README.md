@@ -60,6 +60,16 @@ Every play called while recording gets a clip reference: from 15 s before the mo
 
 In the simulator the mock camera plays the bundled field video at 30 fps, so recordings there show 30 fps; real glasses deliver the requested 15.
 
+## Player cues (play clock in your ear)
+
+Spoken cues through the glasses' open-ear speakers (whatever the phone's audio is routed to; Bluetooth A2DP, so it doesn't use the glasses mic link that ends Display sessions). Set them up with the speaker button on the clock bar under the lens bar.
+
+- **Play clock:** starts by itself after each called play, backdated to when you began the call (about when the ball was whistled dead). 40 s after ordinary plays, 25 s after kicks, scores, changes of possession, penalties and new quarters (NFHS/NCAA/NFL), or 25 always for youth leagues. Counts down out loud at 20, 10, 5, 4, 3, 2, 1, "Time!". Start or stop it with the **40** / **25** / stop buttons, the lens **Clock** button, or by voice: "start the clock", "25 clock", "stop the clock".
+- **After each play:** the score when it changes ("Touchdown Eagles. Eagles 14, Hawks 7."), and down, distance and spot ("Eagles ball. Second and 7 at the Hawks 22.").
+- **Player mode:** set your team and jersey number to hear your running stats after plays you're named in ("You: 3 catches, 52 yards, 1 touchdown.").
+- **On the lens:** the play clock in coarse steps (40, under 30, under 20, under 10, under 5, TIME). Each lens update is a full re-send that resets Neural Band focus, so the lens changes only ~6 times per play; the exact count is spoken and shown on the phone.
+- Cues are muted while you're calling a play, so the mic doesn't hear them. Logic is `PlayClock` / `CueComposer` in SidelineCore; audio is `CueSpeaker`.
+
 ## Gallery, rosters and highlight reels
 
 - **Gallery tab:** every player named in a play, grouped by team, with what they did ("3 runs · 1 return") and how many clips they have; or plays by event type (touchdowns, turnovers, big plays of 15+ yards or 20+ yard returns, sacks, kicks, penalties). Tap through to the plays and their clips.
