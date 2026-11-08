@@ -71,7 +71,8 @@ In the simulator the mock camera plays the bundled field video at 30 fps, so rec
 - **Library tab:** every saved game (newest first) with score, date and Final / In progress. Tap a game for its **summary**: score by quarter, a written recap ("Eagles beat Hawks 13–0. #22 Jane Smith ran for 55 yards on 2 carries and a touchdown…"), the scoring summary with the running score, leaders (passing, rushing, receiving, tackles) and key plays with clips. **Open in Scorebook** switches the scorebook (and Gallery) to that game. Swipe to delete an old game and its videos (asks first).
 - **Season:** per team name, the record (W–L–T over games marked ended) and per-player totals across games (passing, rushing, receiving, defense), using roster names.
 - **Scorebook ⋯ → End game / Reopen game** marks a game final (the scoreboard shows FINAL; the recap says "beat" instead of "lead"); **Game summary** opens the summary for the current game.
-- Everything is on the phone for now; an online library (sync + sharing) is a later step.
+- **Web library (globe button on the Library tab):** builds a static website of every saved game: an index with season records, and a page per game with score by quarter, recap, leaders and every play, filterable by player and event type (touchdowns, turnovers, big plays…), each with its clip cut to an `.mp4`. Links like `…/index.html#player=home-22` open one player's plays. The site is zipped for the share sheet, and the unzipped copy is in Files → On My iPhone → SidelineProbe → `web`. Open `index.html` directly, or upload the folder to any static host (GitHub Pages, Netlify Drop, S3) to share it. No server or account needed. The renderer is `WebLibrary` in SidelineCore.
+- Games still live on the phone; automatic sync to a hosted library is a later step.
 
 ## CV results from the Mac
 

@@ -23,8 +23,9 @@ enum ReelExporter {
         }
     }
 
-    /// Writes the reel to `output` (.mov) and returns its duration in seconds.
-    static func export(_ pieces: [Piece], to output: URL) async throws -> TimeInterval {
+    /// Writes the reel to `output` (.mov unless `fileType` says otherwise)
+    /// and returns its duration in seconds.
+    static func export(_ pieces: [Piece], to output: URL, fileType: AVFileType = .mov) async throws -> TimeInterval {
         guard !pieces.isEmpty else { throw Failure.nothingToExport }
         let composition = AVMutableComposition()
         guard let track = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
@@ -62,10 +63,10 @@ enum ReelExporter {
             throw Failure.exportFailed("no export session")
         }
         if #available(iOS 18, *) {
-            try await session.export(to: output, as: .mov)
+            try await session.export(to: output, as: fileType)
         } else {
             session.outputURL = output
-            session.outputFileType = .mov
+            session.outputFileType = fileType
             await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
                 session.exportAsynchronously { cont.resume() }
             }

@@ -396,6 +396,92 @@ final class ScorebookModel {
         return url
     }
 
+    // MARK: Web library
+
+    /// Progress or result of the last web export, for the Library tab.
+    var webExportStatus: String?
+    var webExportRunning = false
+    /// The zipped site, ready to share.
+    var webExportZip: URL?
+
+    static var documentsDirectory: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] }
+    static var webDirectory: URL { documentsDirectory.appendingPathComponent("web", isDirectory: true) }
+
+    /// Builds the static website of every saved game in Documents/web
+    /// (visible in the Files app) with a clip per play, then zips it for sharing.
+    func exportWebLibrary() async {
+        guard !webExportRunning else { return }
+        webExportRunning = true
+        defer { webExportRunning = false }
+        save()
+        refreshLibrary()
+        let games = library.map(\.game)
+        let fm = FileManager.default
+        let dir = Self.webDirectory
+        webExportZip = nil
+        do {
+            try? fm.removeItem(at: dir)
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+
+            var exported = Set<UUID>()
+            var skipped = 0
+            let clips = WebLibrary.clipsToExport(games)
+            for (i, clip) in clips.enumerated() {
+                let source = folder(for: clip.gameID).appendingPathComponent(clip.source.assetID)
+                let stillRecording = clip.gameID == game.id && hud.recordingFile == clip.source.assetID
+                guard !stillRecording, fm.fileExists(atPath: source.path) else { skipped += 1; continue }
+                webExportStatus = "Cutting clip \(i + 1) of \(clips.count)…"
+                do {
+                    _ = try await ReelExporter.export([.init(url: source, start: clip.source.start, end: clip.source.end)],
+                                                      to: dir.appendingPathComponent(clip.path), fileType: .mp4)
+                    exported.insert(clip.eventID)
+                } catch {
+                    skipped += 1
+                }
+            }
+
+            webExportStatus = "Writing pages…"
+            for file in WebLibrary(games: games, exportedClips: exported).files() {
+                let url = dir.appendingPathComponent(file.path)
+                try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(file.contents.utf8).write(to: url, options: .atomic)
+            }
+
+            webExportStatus = "Zipping…"
+            let zip = try Self.zip(dir, named: "sideline-library-\(Self.stamp()).zip")
+            webExportZip = zip
+            var parts = ["\(games.count) game\(games.count == 1 ? "" : "s")", "\(exported.count) clip\(exported.count == 1 ? "" : "s")"]
+            if skipped > 0 { parts.append("\(skipped) clip\(skipped == 1 ? "" : "s") unavailable") }
+            webExportStatus = "Web library ready: " + parts.joined(separator: ", ") + "."
+        } catch {
+            webExportStatus = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Zips a folder with the system's built-in archiver (NSFileCoordinator
+    /// `.forUploading`) into Documents/exports, replacing older exports.
+    private static func zip(_ folder: URL, named name: String) throws -> URL {
+        let fm = FileManager.default
+        let exports = documentsDirectory.appendingPathComponent("exports", isDirectory: true)
+        try? fm.removeItem(at: exports)
+        try fm.createDirectory(at: exports, withIntermediateDirectories: true)
+        let dest = exports.appendingPathComponent(name)
+        var coordError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: folder, options: .forUploading, error: &coordError) { zipped in
+            do { try fm.copyItem(at: zipped, to: dest) } catch { copyError = error }
+        }
+        if let e = coordError ?? copyError { throw e }
+        return dest
+    }
+
+    private static func stamp() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd-HHmm"
+        return f.string(from: Date())
+    }
+
     static var gamesDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("games", isDirectory: true)

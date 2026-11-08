@@ -39,6 +39,23 @@ struct LibraryView: View {
                 }
             }
             .navigationTitle("Library")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await model.exportWebLibrary() }
+                    } label: {
+                        Label("Export web library", systemImage: "globe")
+                    }
+                    .disabled(model.webExportRunning || model.library.isEmpty)
+                }
+            }
+            .safeAreaInset(edge: .top) {
+                if let status = model.webExportStatus {
+                    WebExportBanner(status: status, running: model.webExportRunning, zip: model.webExportZip) {
+                        model.webExportStatus = nil
+                    }
+                }
+            }
             .onAppear { model.refreshLibrary() }
             .alert("Delete this game?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                    presenting: pendingDelete) { saved in
@@ -48,6 +65,35 @@ struct LibraryView: View {
                 Text("\(saved.game.away.name) at \(saved.game.home.name), \(saved.game.date.formatted(date: .abbreviated, time: .omitted)). Its plays, clips and videos are removed from this phone. This can't be undone.")
             }
         }
+    }
+}
+
+/// Progress of a web export, then the zip to share.
+private struct WebExportBanner: View {
+    let status: String
+    let running: Bool
+    let zip: URL?
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                if running { ProgressView().controlSize(.small) }
+                Text(status).font(.subheadline)
+                Spacer()
+                if !running {
+                    Button("Close", systemImage: "xmark", action: dismiss).labelStyle(.iconOnly).foregroundStyle(.secondary)
+                }
+            }
+            if let zip, !running {
+                ShareLink(item: zip) { Label("Share website (.zip)", systemImage: "square.and.arrow.up") }
+                Text("Unzip and open index.html, or upload the folder to any static host (GitHub Pages, Netlify). The unzipped site is also in Files → On My iPhone → SidelineProbe → web.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
     }
 }
 
