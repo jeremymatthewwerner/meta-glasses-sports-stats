@@ -217,16 +217,30 @@ Gallery = a query over `Event ⨝ participants ⨝ video_refs`, filterable by pe
 
 ## 14. Phased roadmap
 
-### Phase 0 — Feasibility spikes (≈3–4 weeks)
-Goal: kill the biggest unknowns on real hardware before building product.
-- [ ] **DAT on Gen 3:** confirm the DAT 1.0 SDK connects to and streams from Ray-Ban Meta Gen 3 (it isn't named in the changelog). If it doesn't, Display is the DAT device and Gen 3 falls back to native-clip import.
+### Phase 0 — Feasibility (split by hardware dependency)
+
+Phase 0 is split in two so work doesn't wait on glasses. Everything built in 0a is reused unchanged once hardware arrives.
+
+#### Phase 0a — No hardware needed (start now, ≈2–3 weeks)
+- [x] **Football event model + stat engine** *(done 2026-11-07: `SidelineCore/Football`, 32 tests)* in `packages/SidelineCore`: plays, a derived game state (score, possession, down and distance) and rule-set-aware stats (NFHS vs NCAA credit rules) producing a box score.
+- [x] **Voice play parser** *(v1 grammar done; needs real sideline utterances to tune)*: spoken play calls ("22 run for 7, tackle by 54") → structured plays. Deterministic grammar first; an LLM fallback for what the grammar misses comes later.
+- [x] **Voice scorebook prototype** *(built and simulator-verified with typed input; speech recognition is untested on a real phone)* (iOS, phone mic / AirPods): push-to-talk, on-device speech recognition, parse, confirm/undo, live score and box score. It logs every utterance alongside its parse and any correction, so we can measure parse accuracy.
+- [x] **Display HUD prototype** *(pulled forward from Phase 2; built 2026-11-07 and verified on MockDeviceKit's Display preview, not yet on the real lens)*: the scorebook's live score, situation, last play and Confirm / Undo on the Meta Ray-Ban Display lens, driven from the phone. While the HUD is up the scorebook uses the phone mic, because the glasses' Bluetooth mic ends Display sessions ([dat-ios#342](https://github.com/meta/meta-wearables-dat-ios/issues/342)).
+- [ ] **Proxy footage:** film youth games or practices with a phone at head height in portrait (chest or head mount if possible). Downscale to the DAT stream envelope (504×896 or 720×1280 @ 15 fps) so it stands in for glasses footage.
+- [ ] **Model bake-off on proxy footage:** play segmentation, jersey OCR (PARSeq vs VLM), VLM play-type labeling (hosted vs Qwen3-VL).
+- [ ] **Meta + counsel conversations** (§13).
+- **0a exit:** voice parse ≥90% field-accurate on real sideline utterances; box score matches a hand-kept scorebook for one game; ≥90% of plays segmented on proxy footage.
+
+#### Phase 0b — Needs one pair of glasses (≈1 week once available)
+The probe app is already built and simulator-verified; the protocol is [docs/phase0/TEST-PROTOCOL.md](phase0/TEST-PROTOCOL.md).
+- [ ] **DAT on Gen 3:** Meta has confirmed Gen 3 works with DAT 1.0 (Gen 3 support was confirmed 2026-11-07: Meta replies in [dat-ios#323](https://github.com/meta/meta-wearables-dat-ios/discussions/323), [dat-android#185](https://github.com/meta/meta-wearables-dat-android/discussions/185) and [#221](https://github.com/meta/meta-wearables-dat-android/discussions/221), plus a hands-on report; the official FAQ device list lags). Verify on our hardware, and log the reported `DeviceType`: Meta says Gen 3 may report as `.rayBanMetaOptics` instead of `.rayBanMeta`, so never filter on device type.
 - [ ] **Hardware endurance:** DAT stream at 7/15/30fps on Gen 3 and Display. Measure minutes to thermal/battery cutoff, case-recharge cadence, and the Gen 3 + Display two-pair hand-off (one wearer swaps pairs; running both at once needs two wearers, e.g. a parent filming on Gen 3 and a coach scoring on Display).
 - [ ] **Native clip import:** the path from the Meta AI app gallery to our app; timestamp fidelity; audio alignment. Also test whether **Autocapture** works on Gen 3 and whether its clips import with usable timestamps.
+- [x] **DAT on Display** *(T1 passed 2026-11-07: HEVC medium/15 fps streamed at 15.2 fps for 2 min, no stalls. Sessions first ended immediately until the on-glasses DAT app was installed under Meta AI → App Info → Developer Mode.)*
+- [ ] **Display HUD on the real lens:** check legibility outdoors, Neural Band focus/press on Confirm and Undo, and HUD + camera stream together (needs one shared session; today the HUD and the probe each open their own).
+- [ ] **Voice through the glasses:** rerun the 0a voice prototype using the glasses' microphones (six-mic array on Gen 3); compare accuracy with the phone mic.
 - [ ] **Data collection:** record 3–5 real youth football games (glasses + tripod phone), plus a pickup game. Hand-label plays, events and identities. This becomes our eval set (no public egocentric team-game dataset exists).
-- [ ] **Voice-logging prototype:** a stat-keeper wears the glasses, speaks events; measure ASR + parse accuracy outdoors in crowd noise.
-- [ ] **Model bake-off on our footage:** play segmentation, jersey OCR (PARSeq vs VLM), VLM play-type labeling (hosted vs Qwen3-VL), face match at sideline distances.
-- [ ] **Meta + counsel conversations** (§13).
-- **Exit criteria:** ≥90% of plays segmented; voice event parse ≥90% field-accurate; a viable full-game capture recipe; a written answer on the face-ID path.
+- **0b exit:** a viable full-game capture recipe; a written answer on the face-ID path.
 
 ### Phase 1 — Football MVP: voice scorebook + highlights (≈8–10 weeks)
 - iOS app: team setup, CSV roster import, DAT capture session with battery manager, voice tagging, live score.
@@ -265,7 +279,8 @@ Goal: kill the biggest unknowns on real hardware before building product.
 | Glasses can't sustain a full game | High / High | Hybrid capture; low-fps stream; case swaps; two-pair hand-off; fixed-camera backbone |
 | Meta denies the face-ID exception | Medium / Medium | Per-source kill switch; jersey + appearance + human labels still work; faces only on non-glasses sources if counsel OKs |
 | DAT distribution stays capped | Medium / Low (personal project) | Personal use fits within 100 testers; native-clip import path works without DAT |
-| DAT doesn't support Gen 3 yet | Medium / Medium | First Phase 0 task; fall back to Display for DAT and Gen 3 for native-clip capture |
+| DAT quirks on Gen 3 (reports as `.rayBanMetaOptics`; official docs lag) | Low / Low | Meta confirmed support in GitHub discussions; don't filter on `DeviceType`; verify in Phase 0 T1 |
+| Stream restart and HFP conflicts in DAT 1.0.x | Medium / Medium | Per Meta: never restart a stopped stream (create a fresh `Camera` per burst, keep the `DeviceSession`); keep Bluetooth HFP closed while a DAT session is open (it can end the session on some firmware); use stream audio instead |
 | Football automation accuracy too low | High / Medium | v1 promise is voice-first; review queue; collect corrected data to train on |
 | Portrait-only, head-motion footage hurts CV | High / Medium | Stabilization, BoT-SORT CMC, Vanguard 122° FOV, rely on voice, fixed-camera fusion |
 | League rights (Little League, NFHS) | Medium / Medium | Rights flag, team-private default, org onboarding, no streaming |
@@ -281,7 +296,7 @@ Goal: kill the biggest unknowns on real hardware before building product.
 | 1 | Sport order | **Football → soccer → baseball** (original order kept) | Football v1 is "voice scorebook + highlights". Soccer brings Veo/MP4 fusion in Phase 3. Baseball stays Phase 4 despite being easiest to automate. |
 | 2 | Platform | **iOS first** | One native SwiftUI app; Android waits for Phase 4 (or later). |
 | 3 | Business model | **Free / personal project** | No billing, plans or sales motion. Optimize for the owner, friends and a few teams. The DAT 100-tester cap is not a blocker. MaxPreps stat-partner registration and BYGA/GameChanger BD drop to "nice to have". **Consent is still required:** friends' kids are still minors and face templates are still biometric data. Cloud cost matters more than scale, so we favor cheap per-game processing. |
-| 4 | Test hardware | **Ray-Ban Meta Gen 3 + Meta Ray-Ban Display** | Phase 0 measures endurance on these two. Gen 3 is *not named* in the DAT changelog, so **confirming DAT works on Gen 3 is the first task**. Gen 3 (3K capture, 9 h, Action button) is the capture device; Display (HUD, Neural Band, on-glasses web apps) is the scorer/confirm device. One person wears one pair at a time, so using both at once means two wearers (filmer + scorer) or a halftime swap. Vanguard/HSTN/Gen 1–2 stay supported via DAT but untested by us. |
+| 4 | Test hardware | **Ray-Ban Meta Gen 3 + Meta Ray-Ban Display** | Phase 0 measures endurance on these two. Gen 3 isn't in the official FAQ list yet, but **Meta confirmed in GitHub discussions that it works with DAT 1.0** (it may report as `.rayBanMetaOptics`). Gen 3 (3K capture, 9 h, Action button) is the capture device; Display (HUD, Neural Band, on-glasses web apps) is the scorer/confirm device. One person wears one pair at a time, so using both at once means two wearers (filmer + scorer) or a halftime swap. Vanguard/HSTN/Gen 1–2 stay supported via DAT but untested by us. |
 | 5 | Hosted vs self-hosted models | *Default:* **hosted frontier APIs allowed** under no-training / zero-retention terms; Qwen3-VL as a cost fallback | Fastest path for a personal project; revisit if footage of other people's kids is shared widely. |
 | 6 | Geography | *Default:* **US only** | Defers GDPR Art. 9 / DPIA work. |
 

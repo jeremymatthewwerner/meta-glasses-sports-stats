@@ -22,7 +22,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     # Set your Apple Developer Team ID here (Xcode > Signing & Capabilities),
     # or in Xcode after generating.
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: "SAUBJ4WXQN"
     # Developer Mode: leave META_APP_ID as 0 and the SDK skips attestation.
     # For a release channel, set both from the Wearables Developer Center.
     META_APP_ID: "0"
@@ -47,4 +47,6 @@ targets:
         product: MWDATCamera
       - package: MetaWearablesDAT
         product: MWDATMockDevice
+      - package: MetaWearablesDAT
+        product: MWDATDisplay
       - package: SidelineCore

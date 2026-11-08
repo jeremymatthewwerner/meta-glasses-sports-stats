@@ -1,3 +1,4 @@
+import MWDATCore
 import SidelineCore
 import SwiftUI
 
@@ -15,7 +16,14 @@ struct LiveRunView: View {
             }
 
             if let error = runner.startError {
-                Section { Text(error).foregroundStyle(.red) }
+                Section {
+                    Text(error).foregroundStyle(.red)
+                    if runner.needsGlassesAppUpdate {
+                        Button("Install / update the app on the glasses (Meta AI)") {
+                            Task { try? await Wearables.shared.openDATGlassesAppUpdate() }
+                        }
+                    }
+                }
             }
 
             Section(runner.isRunning ? "Live" : "Finished") {

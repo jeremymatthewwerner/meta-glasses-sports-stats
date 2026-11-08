@@ -21,9 +21,12 @@ final class WearablesModel {
     private(set) var registration: RegistrationState = .unavailable
     private(set) var glasses: [GlassesRow] = []
     var selectedID: DeviceIdentifier?
-    private(set) var cameraPermission: String = "unknown"
+    private(set) var cameraPermission: String = "not checked"
     private(set) var lastError: String?
     private(set) var mockEnabled = false
+    /// The most recently paired mock, so the app can show the mock Display preview.
+    private(set) var mockGlasses: (any MockGlasses)?
+    private(set) var mockModel: GlassesModel?
 
     private var started = false
     private var refreshTimer: Timer?
@@ -33,6 +36,7 @@ final class WearablesModel {
         started = true
         let wearables = Wearables.shared
         registration = wearables.registrationState
+        if registration == .registered { checkCameraPermission(quiet: true) }
 
         Task { [weak self] in
             for await state in wearables.registrationStateStream() {
@@ -88,12 +92,13 @@ final class WearablesModel {
         }
     }
 
-    func checkCameraPermission() {
+    /// `quiet` is for automatic checks, which can race device discovery.
+    func checkCameraPermission(quiet: Bool = false) {
         Task {
             do {
                 let status = try await Wearables.shared.checkPermissionStatus(.camera)
                 cameraPermission = status == .granted ? "granted" : "denied"
-            } catch { report(error) }
+            } catch { if !quiet { report(error) } }
         }
     }
 
@@ -125,6 +130,8 @@ final class WearablesModel {
                 mock.services.camera.setCameraFeed(cameraFacing: .back)
             }
             mockEnabled = true
+            mockGlasses = mock
+            mockModel = model
         } catch {
             report(error)
         }
@@ -133,6 +140,8 @@ final class WearablesModel {
     func disableMock() {
         MockDeviceKit.shared.disable()
         mockEnabled = false
+        mockGlasses = nil
+        mockModel = nil
     }
 
     // MARK: Helpers

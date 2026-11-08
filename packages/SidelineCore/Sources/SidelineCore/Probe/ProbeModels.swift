@@ -123,6 +123,7 @@ public struct ProbeEvent: Codable, Sendable, Equatable {
         case stallRecovered
         case thermalChange
         case note            // free-form, e.g. "put in case at halftime"
+        case appLifecycle    // backgrounded / foregrounded / screen locked / unlocked
     }
 
     public var elapsed: TimeInterval

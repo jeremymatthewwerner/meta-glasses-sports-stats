@@ -31,6 +31,13 @@ This is a targeted follow-up to the main research report ([reports/](../../repor
 - **Baseball:** data libraries (mlbgame, pybaseball, Retrosheet tools) plus small React scorekeeping apps (e.g. rscampbell333/baseball-scorekeeper, MIT). There is no CV scorekeeper.
 - **Highlights:** small hobby projects only (e.g. arghyadeep99/Sports-Highlights-Generator, which works from audio and needs no CV).
 
+## Long-video event finding (research code)
+
+- **[Tanveer81/ReVisionLLM](https://github.com/Tanveer81/ReVisionLLM)** (CVPR 2025, ~45★, last push Nov 2025). A recursive vision-language model that finds events in **hour-long videos**: it searches broad segments first, then narrows to exact time boundaries. That matches our "find every play in a full game" problem. Caveats:
+  - The license is **CC BY-NC-ND 4.0** (non-commercial, no derivatives), so it can't ship in a product. Using it for internal experiments on a personal project is fine.
+  - It was trained on movies (MAD) and YouTube chapters (VidChapters-7M), not sports.
+  - Use it as a design reference for long-game segmentation (coarse-to-fine search), not as a dependency.
+
 ## Commercial things found that weren't in the main report
 
 - **Mixpeek:** a per-minute video API with youth-basketball box scores, play-by-play and jersey detection. It could serve as a hosted fallback or benchmark; it isn't open.

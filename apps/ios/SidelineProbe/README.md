@@ -1,8 +1,12 @@
 # Sideline Probe (Phase 0)
 
+The app has two tabs:
+- **Scorebook (Phase 0a):** tap the mic and call plays ("22 run for 7, tackle by 54"), or type them. It keeps a live score, down and distance, the play log with confirm (swipe right) / reject (swipe left), and a box score. Each utterance is saved with its parse to `Documents/games/<id>-utterances.json` so parse accuracy can be measured. Tap **?** for the phrases it understands. The mic uses Bluetooth headset input when one is connected (AirPods, or the glasses as a headset).
+- **Glasses probe (Phase 0b):** the hardware endurance tests described below.
+
 A minimal iOS app for the Phase 0 hardware tests in [docs/PLAN.md](../../../docs/PLAN.md) §14. It answers three questions on real glasses:
 
-1. **Does DAT 1.0.1 work on Ray-Ban Meta Gen 3?** The device list shows the `DeviceType` and `Compatibility` DAT reports. Then try to start a stream.
+1. **Does DAT 1.0.1 work on our Ray-Ban Meta Gen 3?** Meta says yes (see the DAT discussions). Gen 3 may report its `DeviceType` as `rayBanMetaOptics`. The device list shows the reported type and `Compatibility`; then start a stream.
 2. **How long does a live stream survive?** Endurance runs log glasses battery, thermal level, link/session/stream state, measured FPS, stalls and errors at 1 Hz until the stream dies or you stop it.
 3. **Is the HEVC stream usable as a game proxy?** HEVC runs write the glasses stream to `video.mov` (passthrough, no re-encode).
 
@@ -39,6 +43,14 @@ In the app:
 
 `META_APP_ID` stays `0` for Developer Mode, so the SDK skips attestation. To share with testers through a Meta release channel, create a project in the [Wearables Developer Center](https://wearables.developer.meta.com/) and set `META_APP_ID` and `CLIENT_TOKEN` in `project.yml`.
 
+## Scorebook on the Display lens
+
+On the Scorebook tab, **Show on glasses** opens a DAT session on the linked Meta Ray-Ban Display and draws the score, the situation, the last play and **Confirm / Undo** buttons on the lens. Every change in the scorebook redraws the lens. Pressing a lens button (Neural Band pinch, or the touchpad) confirms the play or undoes the last one.
+
+- While the lens is up, voice input uses the **phone mic**. Using the glasses as a Bluetooth headset mic ends Display sessions ([dat-ios#342](https://github.com/meta/meta-wearables-dat-ios/issues/342)).
+- DAT allows one session per device, so the HUD and a probe run can't run at the same time yet.
+- In the simulator, launch with `-mockGlasses metaRayBanDisplay` to pair a mock Display automatically. The phone then shows MockDeviceKit's lens preview. Tap a lens button once to focus it and again to press it. (`MockDisplayKit.sendClick(identifier:)` returns `true` but doesn't reach the buttons, so the app doesn't use it.)
+
 ## Without glasses
 
 **Mock glasses** pairs a simulated device through MockDeviceKit. On a phone it can stream the back camera; in the simulator, choose a video file. Mock runs exercise the app flow only. They say nothing about battery or thermal behavior.
@@ -53,6 +65,8 @@ In the app:
 | `FrameTap.swift` | Thread-safe FPS / stall meter fed from the frame callback |
 | `HEVCFileWriter.swift` | Passthrough `hvc1` → `video.mov` |
 | `ContentView` / `LiveRunView` / `RunsView` | UI |
+| `Scorebook/ScorebookModel.swift` · `ScorebookView.swift` | Voice/typed play entry, play log, box score |
+| `Scorebook/GlassesHUD.swift` | Display session + lens layout (MWDATDisplay); layout data comes from `SidelineCore.FootballHUD` |
 
 Run models, CSV/JSON output and summary math live in [`packages/SidelineCore`](../../../packages/SidelineCore), which is tested on macOS with `scripts/test-core.sh`.
 

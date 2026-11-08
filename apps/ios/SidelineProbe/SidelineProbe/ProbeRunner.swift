@@ -24,6 +24,9 @@ final class ProbeRunner {
     private(set) var recentEvents: [ProbeEvent] = []
     private(set) var lastRunFolder: URL?
     private(set) var startError: String?
+    /// The glasses-side DAT app must be installed/updated via Meta AI.
+    private(set) var needsGlassesAppUpdate = false
+    private var lastSessionError: DeviceSessionError?
 
     private var session: DeviceSession?
     private var camera: Camera?
@@ -39,6 +42,8 @@ final class ProbeRunner {
     func start(config: ProbeRunConfig, deviceID: DeviceIdentifier) async {
         guard !isRunning else { return }
         startError = nil
+        needsGlassesAppUpdate = false
+        lastSessionError = nil
         recentEvents = []
         preview = nil
         latest = nil
@@ -65,8 +70,15 @@ final class ProbeRunner {
         run = newRun
         isRunning = true
         log(.runStarted, "\(config.resolution.rawValue) \(config.frameRate)fps \(config.codec.rawValue) on \(newRun.device?.glassesType ?? "?")")
+        if let d = wearables.deviceForIdentifier(deviceID) {
+            log(.note, "glasses at start: link \(d.linkState), worn \(d.donState), hinge \(d.hingeState), battery \(d.batteryLevel.map { "\($0)%" } ?? "?"), \(d.compatibility().displayString)")
+        }
 
         UIApplication.shared.isIdleTimerDisabled = true
+        observeLifecycle()
+        if config.codec == .raw {
+            log(.note, "raw codec pauses when the app is backgrounded (DAT); use HEVC for pocket tests")
+        }
         UIDevice.current.isBatteryMonitoringEnabled = true
         startSampler()
 
@@ -80,13 +92,23 @@ final class ProbeRunner {
                 Task { @MainActor in self?.onSessionState(state) }
             }.store(in: tokens)
             session.errorPublisher.listen { [weak self] error in
-                Task { @MainActor in self?.log(.sessionError, Self.describe(error)) }
+                Task { @MainActor in
+                    self?.lastSessionError = error
+                    if error == .datAppOnTheGlassesUpdateRequired || error == .dwaUnavailable {
+                        self?.needsGlassesAppUpdate = true
+                    }
+                    self?.log(.sessionError, "\(error): \(Self.describe(error))")
+                }
             }.store(in: tokens)
 
             try session.start()
             for await state in states {
                 if state == .started { break }
-                if state == .stopped { throw ProbeError.sessionStoppedBeforeStart }
+                if state == .stopped {
+                    // Let any pending error callback land so we can report the reason.
+                    try? await Task.sleep(for: .milliseconds(500))
+                    throw ProbeError.sessionStoppedBeforeStart(reason: lastSessionError.map { "\($0): \(Self.describe($0))" })
+                }
             }
 
             let streamConfig = StreamConfiguration(
@@ -101,6 +123,10 @@ final class ProbeRunner {
             attach(stream: camera.stream, config: config, folder: folder)
             camera.stream.start()
         } catch {
+            if let e = error as? DeviceSessionError {
+                lastSessionError = e
+                if e == .datAppOnTheGlassesUpdateRequired || e == .dwaUnavailable { needsGlassesAppUpdate = true }
+            }
             startError = Self.describe(error)
             log(.sessionError, "start failed: \(startError!)")
             await finish(reason: "start failed: \(startError!)")
@@ -145,6 +171,27 @@ final class ProbeRunner {
                 Task { @MainActor in self?.preview = image }
             }
         }.store(in: tokens)
+    }
+
+    // MARK: Pocket / lock-screen behavior
+
+    private var lifecycleObservers: [NSObjectProtocol] = []
+
+    /// Logs backgrounding and screen lock so Phase 0b can see whether the
+    /// stream survives the phone going into a pocket (test T6).
+    private func observeLifecycle() {
+        lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        let events: [(Notification.Name, String)] = [
+            (UIApplication.didEnterBackgroundNotification, "app backgrounded"),
+            (UIApplication.willEnterForegroundNotification, "app foregrounded"),
+            (UIApplication.protectedDataWillBecomeUnavailableNotification, "screen locked"),
+            (UIApplication.protectedDataDidBecomeAvailableNotification, "screen unlocked"),
+        ]
+        lifecycleObservers = events.map { name, text in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.log(.appLifecycle, text) }
+            }
+        }
     }
 
     // MARK: Sampling
@@ -236,6 +283,8 @@ final class ProbeRunner {
             }
         }
         UIApplication.shared.isIdleTimerDisabled = false
+        lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        lifecycleObservers = []
     }
 
     /// One last sample so the summary reflects the final state.
@@ -256,10 +305,11 @@ final class ProbeRunner {
     // MARK: Utilities
 
     enum ProbeError: LocalizedError {
-        case sessionStoppedBeforeStart, cameraUnavailable
+        case sessionStoppedBeforeStart(reason: String?), cameraUnavailable
         var errorDescription: String? {
             switch self {
-            case .sessionStoppedBeforeStart: "Device session stopped before it started"
+            case .sessionStoppedBeforeStart(let reason):
+                "Device session stopped before it started" + (reason.map { " — \($0)" } ?? " (the glasses gave no reason)")
             case .cameraUnavailable: "Could not add a camera (session not started?)"
             }
         }

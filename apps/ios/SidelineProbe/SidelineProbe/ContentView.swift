@@ -24,13 +24,21 @@ struct ContentView: View {
                         Button("Register with Meta AI") { wearables.register() }
                             .disabled(wearables.registration == .registering)
                     }
-                    LabeledContent("Camera permission", value: wearables.cameraPermission)
-                    HStack {
-                        Button("Check") { wearables.checkCameraPermission() }
-                        Spacer()
-                        Button("Request") { wearables.requestCameraPermission() }
+                    LabeledContent("Glasses camera permission", value: wearables.cameraPermission)
+                    if wearables.registration != .registered {
+                        Text("Register first; camera permission is granted per registered app in Meta AI.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else if wearables.cameraPermission != "granted" {
+                        Button {
+                            wearables.requestCameraPermission()
+                        } label: {
+                            Label("Request camera permission", systemImage: "camera")
+                        }
                     }
-                    .buttonStyle(.borderless)
+                    Button("Re-check permission") { wearables.checkCameraPermission() }
+                }
+                .onChange(of: wearables.registration) { _, state in
+                    if state == .registered { wearables.checkCameraPermission(quiet: true) }
                 }
 
                 Section {
@@ -54,7 +62,7 @@ struct ContentView: View {
                 } header: {
                     Text("Glasses")
                 } footer: {
-                    Text("Gen 3 check: note the Type value DAT reports for Ray-Ban Meta Gen 3 and whether a stream starts.")
+                    Text("Gen 3 may report its Type as Ray-Ban Meta or Ray-Ban Meta Optics. Note which, and whether a stream starts.")
                 }
 
                 Section("Run") {

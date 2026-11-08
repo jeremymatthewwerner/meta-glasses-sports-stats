@@ -11,4 +11,4 @@ if ! xcode-select -p | grep -q Xcode.app; then
          -Xlinker -rpath -Xlinker "$CLT/Frameworks"
          -Xlinker -rpath -Xlinker "$CLT/usr/lib")
 fi
-swift test "${FLAGS[@]}" "$@"
+swift test ${FLAGS[@]+"${FLAGS[@]}"} "$@"
