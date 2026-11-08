@@ -14,6 +14,11 @@ final class HEVCFileWriter: @unchecked Sendable {
     private var finished = false
     private(set) var droppedFrames = 0   // queue-confined
     private(set) var failure: String?    // queue-confined
+    // Wall clock ↔ file time mapping, refreshed on every frame (queue-confined).
+    private var firstPTS: CMTime?
+    private var lastPTS: CMTime?
+    private var lastWall: Date?
+    private var written = 0
 
     init(url: URL) {
         self.url = url
@@ -34,12 +39,37 @@ final class HEVCFileWriter: @unchecked Sendable {
                 sessionStarted = true
             }
             if input.isReadyForMoreMediaData {
-                if !input.append(buffer) {
+                if input.append(buffer) {
+                    let pts = CMSampleBufferGetPresentationTimeStamp(buffer)
+                    if firstPTS == nil { firstPTS = pts }
+                    lastPTS = pts
+                    lastWall = Date()
+                    written += 1
+                } else {
                     failure = writer.error?.localizedDescription ?? "append failed"
                 }
             } else {
                 droppedFrames += 1
             }
+        }
+    }
+
+    /// Seconds into the file that correspond to wall-clock `date`, using the
+    /// most recent frame as the reference (so stream gaps don't skew it).
+    /// Nil until the first frame is written.
+    func videoTime(at date: Date) -> TimeInterval? {
+        queue.sync {
+            guard let firstPTS, let lastPTS, let lastWall else { return nil }
+            let fileNow = CMTimeGetSeconds(CMTimeSubtract(lastPTS, firstPTS))
+            return max(0, fileNow + date.timeIntervalSince(lastWall))
+        }
+    }
+
+    /// Seconds of video written so far, and frame count.
+    var progress: (seconds: TimeInterval, frames: Int) {
+        queue.sync {
+            guard let firstPTS, let lastPTS else { return (0, written) }
+            return (CMTimeGetSeconds(CMTimeSubtract(lastPTS, firstPTS)), written)
         }
     }
 

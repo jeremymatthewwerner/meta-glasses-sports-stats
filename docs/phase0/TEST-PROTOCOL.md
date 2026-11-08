@@ -65,16 +65,34 @@ If it fails, the fallbacks in order are:
 - keep the screen on and dimmed in a chest or armband mount;
 - Picture-in-Picture or VoIP-style background modes. These were suggested for iPhone-camera apps and are only worth trying if the DAT stream itself gets suspended.
 
+## T7. Call plays through the glasses (Display, phone in pocket)
+
+Hands-free scoring: the wearer picks **Call play** on the lens with the Neural Band, says the play, and stops talking. Recognition runs on the glasses (`MWDATSpeech`, experimental in DAT 1.0), so no phone audio is involved.
+
+1. Probe tab → **Request mic permission** (approve in Meta AI). Check "Glasses mic permission: granted".
+2. Scorebook → **Show on glasses**. Under the lens status the app should say "glasses mic: ready". If it says "unavailable", note the reason; Call play will fall back to the phone mic.
+3. Call 10 plays from the lens with the phone in hand, then 10 with the phone in a pocket and the screen locked. For each, note whether it was heard, whether the parse was right, and how long until the play appeared on the lens.
+4. Watch for the known DAT speech bugs: the recognizer never starting ([dat-ios#336](https://github.com/meta/meta-wearables-dat-ios/issues/336)) or stopping after a few minutes ([#360](https://github.com/meta/meta-wearables-dat-ios/issues/360)).
+5. Pass: ≥ 9/10 heard and parsed correctly in each condition; works for 15+ minutes.
+
+## T8. Game mode dry run (practice or scrimmage, ~20 min)
+
+Scorebook → **Connect glasses** → **Record game video**, then call every play from the lens (Call play) with the phone in a pocket.
+
+1. After ~20 min tap **Stop video**. Each called play should show **▶ Clip m:ss–m:ss**; open five and check the play is inside the clip (each clip runs 15 s before the call to 2 s after).
+2. Note how many seconds after the whistle you usually start the call, so we can tune the clip window.
+3. Note battery start/end and any "glasses mic" or recording errors. Files are in Files → On My iPhone → Sideline Probe → games → (game id).
+4. Pass: ≥ 90% of clips contain their play; recording survives the pocket for the full run.
+
 ## T5. First real game
 
-Record one real youth football game.
+Record one real youth football game in **game mode** (lens + glasses mic + video in one session).
 
-- Gen 3 streaming with the best config.
-- A tripod phone recording the whole game as the backbone.
-- Notes at each quarter break.
-- Native clips of key plays.
+- Display (or Gen 3) in game mode; recharge in the case at halftime and start a new video file after.
+- A tripod phone recording the whole game as the backbone, if possible.
+- Every play called from the lens, so every play is stamped into the video.
 
-This becomes eval game #1. Hand-label plays and events afterwards (labeling tool comes later; a spreadsheet with timestamps is fine).
+This becomes eval game #1: the voice calls are the play labels, the clips are the play segments. Correct any wrong calls afterwards; that corrected log is the ground truth for the CV work.
 
 ## Results
 

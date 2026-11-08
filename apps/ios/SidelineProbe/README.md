@@ -45,11 +45,20 @@ In the app:
 
 ## Scorebook on the Display lens
 
-On the Scorebook tab, **Show on glasses** opens a DAT session on the linked Meta Ray-Ban Display and draws the score, the situation, the last play and **Confirm / Undo** buttons on the lens. Every change in the scorebook redraws the lens. Pressing a lens button (Neural Band pinch, or the touchpad) confirms the play or undoes the last one.
+On the Scorebook tab, **Show on glasses** opens a DAT session on the linked Meta Ray-Ban Display and draws the score, the situation, the last play and **Confirm / Undo** buttons on the lens. Every change in the scorebook redraws the lens. Pressing a lens button (Neural Band pinch, or the touchpad) confirms the play, undoes the last one, or (right after an undo) redoes it. Redo restores the play with its earlier status and stays available until the next new play; the phone toolbar and the voice command "redo" do the same.
 
-- While the lens is up, voice input uses the **phone mic**. Using the glasses as a Bluetooth headset mic ends Display sessions ([dat-ios#342](https://github.com/meta/meta-wearables-dat-ios/issues/342)).
+- **Call play on the lens** listens through the glasses' own recognizer (MWDATSpeech, experimental), so plays can be called with the phone in a pocket. It needs the glasses mic permission (probe tab → Request mic permission) and falls back to the phone mic otherwise. A call ends on a final transcript, 1.6 s of silence, 12 s, or Done / Cancel.
+- The phone's own mic button still works while the lens is up, but uses the **phone mic**. Using the glasses as a Bluetooth headset mic ends Display sessions ([dat-ios#342](https://github.com/meta/meta-wearables-dat-ios/issues/342)).
 - DAT allows one session per device, so the HUD and a probe run can't run at the same time yet.
-- In the simulator, launch with `-mockGlasses metaRayBanDisplay` to pair a mock Display automatically. The phone then shows MockDeviceKit's lens preview. Tap a lens button once to focus it and again to press it. (`MockDisplayKit.sendClick(identifier:)` returns `true` but doesn't reach the buttons, so the app doesn't use it.)
+- In the simulator, launch with `-mockGlasses metaRayBanDisplay` to pair a mock Display automatically. The phone then shows MockDeviceKit's lens preview. Tap a lens button once to focus it and again to press it. The "Mock: say a play" field feeds MockSpeechKit as if the wearer spoke. (`MockDisplayKit.sendClick(identifier:)` returns `true` but doesn't reach the buttons, so the app doesn't use it.)
+
+## Game mode (video + play clips)
+
+**Connect glasses**, then **Record game video**. The same DAT session runs the lens, the glasses mic and the camera (HEVC 504×896 @ 15 fps, the T1 config, written in passthrough to `Documents/games/<game id>/glasses-01.mov`, `-02`, …, with `recording.json` listing the files and their start/end times).
+
+Every play called while recording gets a clip reference: from 15 s before the moment the call started (Call play pressed, or the phone mic tapped) to 2 s after, because plays are called after they happen. After **Stop video** each such play shows **▶ Clip m:ss–m:ss**, which plays just that stretch. Clips of the file being recorded aren't playable until it stops (the .mov isn't finalized yet).
+
+In the simulator the mock camera plays the bundled field video at 30 fps, so recordings there show 30 fps; real glasses deliver the requested 15.
 
 ## Without glasses
 

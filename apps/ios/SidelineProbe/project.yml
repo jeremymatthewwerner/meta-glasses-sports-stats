@@ -49,4 +49,6 @@ targets:
         product: MWDATMockDevice
       - package: MetaWearablesDAT
         product: MWDATDisplay
+      - package: MetaWearablesDAT
+        product: MWDATSpeech
       - package: SidelineCore

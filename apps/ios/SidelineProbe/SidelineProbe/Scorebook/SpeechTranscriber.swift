@@ -18,6 +18,8 @@ final class SpeechTranscriber {
     private(set) var isStarting = false
     /// Let AirPods / glasses act as the mic. Off while the Display HUD is up.
     var allowBluetoothInput = true
+    /// Every partial transcript while listening (used by lens Call play).
+    var onPartial: ((String) -> Void)?
 
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private let audio = AudioCapture()
@@ -83,7 +85,10 @@ final class SpeechTranscriber {
             let failed = err != nil
             Task { @MainActor in
                 guard let self else { return }
-                if let text { self.partial = text }
+                if let text {
+                    self.partial = text
+                    self.onPartial?(text)
+                }
                 if isFinal || failed { self.deliverFinal() }
             }
         }

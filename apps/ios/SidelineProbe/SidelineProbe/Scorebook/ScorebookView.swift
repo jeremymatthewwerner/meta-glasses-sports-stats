@@ -1,3 +1,4 @@
+import AVKit
 import MWDATMockDevice
 import SidelineCore
 import SwiftUI
@@ -6,6 +7,8 @@ struct ScorebookView: View {
     @Environment(ScorebookModel.self) private var model
     @Environment(WearablesModel.self) private var wearables
     @State private var typed = ""
+    @State private var playingClip: PlayingClip?
+    @State private var mockSay = "22 run for 7, tackle by 54"
     @State private var showBox = false
     @State private var showNewGame = false
     @State private var showHelp = false
@@ -39,7 +42,9 @@ struct ScorebookView: View {
                                 .foregroundStyle(.secondary)
                         }
                         ForEach(model.game.events.reversed()) { event in
-                            EventRow(event: event)
+                            EventRow(event: event, clipReady: event.videoRefs.first.map(model.clipIsReady) ?? false) { ref in
+                                playingClip = PlayingClip(url: model.clipURL(ref), ref: ref, title: event.summary)
+                            }
                                 .swipeActions(edge: .leading) {
                                     Button { model.confirm(event.id) } label: { Label("Confirm", systemImage: "checkmark") }
                                         .tint(.green)
@@ -67,6 +72,12 @@ struct ScorebookView: View {
                     } label: { Image(systemName: "ellipsis.circle") }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { model.undoLast() } label: { Image(systemName: "arrow.uturn.backward") }
+                        .disabled(!model.canUndo)
+                        .accessibilityLabel("Undo last play")
+                    Button { model.redoLast() } label: { Image(systemName: "arrow.uturn.forward") }
+                        .disabled(model.redoTarget == nil)
+                        .accessibilityLabel("Redo")
                     Button { showHelp = true } label: { Image(systemName: "questionmark.circle") }
                     Button("Box score") { showBox = true }
                 }
@@ -74,6 +85,7 @@ struct ScorebookView: View {
             .sheet(isPresented: $showBox) { BoxScoreView(game: model.game) }
             .sheet(isPresented: $showNewGame) { NewGameView() }
             .sheet(isPresented: $showHelp) { PhraseHelpView() }
+            .sheet(item: $playingClip) { ClipPlayerView(clip: $0) }
         }
     }
 
@@ -87,11 +99,40 @@ struct ScorebookView: View {
                     .foregroundStyle(hudFailed ? .red : .secondary)
                     .lineLimit(2)
                 Spacer()
-                Button(model.hud.isActive ? "Hide" : "Show on glasses") {
-                    model.toggleHUD(deviceID: wearables.glasses.first(where: \.supportsDisplay)?.id)
+                Button(model.hud.isActive ? "Disconnect" : "Connect glasses") {
+                    // Prefer a pair with a display (lens HUD); any pair can record and listen.
+                    let pick = wearables.glasses.first(where: \.supportsDisplay) ?? wearables.glasses.first
+                    model.toggleHUD(deviceID: pick?.id)
                 }
                     .font(.footnote.bold())
                     .disabled(model.hud.status == .connecting)
+            }
+            if model.hud.isOn {
+                HStack {
+                    Button {
+                        model.toggleRecording()
+                    } label: {
+                        Label(model.hud.isRecording ? "Stop video" : "Record game video",
+                              systemImage: model.hud.isRecording ? "stop.circle.fill" : "record.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(model.hud.isRecording ? .red : .accentColor)
+                    .font(.footnote.bold())
+                    .accessibilityIdentifier("recordButton")
+                    if let r = model.hud.recording {
+                        Text("● \(Self.clock(r.seconds)) · \(String(format: "%.0f", r.fps)) fps · \(r.frames) frames")
+                            .font(.caption.monospacedDigit()).foregroundStyle(.red)
+                    } else if !model.recording.segments.isEmpty {
+                        Text("\(model.recording.segments.count) video file(s) for this game")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if let err = model.hud.recording?.error ?? model.recordingError {
+                    Text(err).font(.caption2).foregroundStyle(.red)
+                }
+            }
+            if model.hud.isActive {
+                Text(model.hud.glassesMicText).font(.caption2).foregroundStyle(.secondary)
             }
             if model.hud.isActive, wearables.mockModel == .metaRayBanDisplay, let mock = wearables.mockGlasses {
                 MockLensPreview(glasses: mock)
@@ -101,8 +142,29 @@ struct ScorebookView: View {
                     .accessibilityIdentifier("mockLensPreview")
                 Text("Mock lens: tap a button once to focus it, again to press it (like the Neural Band).")
                     .font(.caption2).foregroundStyle(.secondary)
+                // Mock glasses mic: feeds MockSpeechKit as if the wearer spoke.
+                HStack {
+                    TextField("Mock: say a play into the glasses", text: $mockSay)
+                        .textFieldStyle(.roundedBorder).font(.caption)
+                        .accessibilityIdentifier("mockSay")
+                    Button("Say") {
+                        let words = mockSay.split(separator: " ")
+                        for i in 1..<max(words.count, 1) {
+                            mock.services.speech.simulateTranscription(
+                                text: words.prefix(i).joined(separator: " "), isFinal: false, confidence: 0.8)
+                        }
+                        mock.services.speech.simulateTranscription(text: mockSay, isFinal: true, confidence: 0.9)
+                    }
+                    .font(.caption).disabled(mockSay.isEmpty)
+                }
             }
         }
+    }
+
+    static func clock(_ s: TimeInterval) -> String {
+        let t = Int(s.rounded(.down))
+        return t >= 3600 ? String(format: "%d:%02d:%02d", t / 3600, t / 60 % 60, t % 60)
+                         : String(format: "%d:%02d", t / 60, t % 60)
     }
 
     private var hudFailed: Bool {
@@ -201,6 +263,8 @@ struct Scoreboard: View {
 
 struct EventRow: View {
     let event: FootballEvent
+    var clipReady = false
+    var onPlayClip: (VideoRef) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -216,6 +280,20 @@ struct EventRow: View {
             if event.confidence < 0.9, event.status == .proposed {
                 Text("confidence \(Int(event.confidence * 100))% · swipe right to confirm, left to reject")
                     .font(.caption2).foregroundStyle(.orange)
+            }
+            if let ref = event.videoRefs.first {
+                if clipReady {
+                    Button {
+                        onPlayClip(ref)
+                    } label: {
+                        Label("Clip \(ScorebookView.clock(ref.start))–\(ScorebookView.clock(ref.end))", systemImage: "play.rectangle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Label("Clip \(ScorebookView.clock(ref.start))–\(ScorebookView.clock(ref.end)) · ready when video stops",
+                          systemImage: "film").font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -274,7 +352,7 @@ struct PhraseHelpView: View {
                    "field goal is good from 32", "extra point good", "two point conversion good, 11 to 80"]),
         ("Penalties", ["holding on 72, 10 yards", "false start", "22 run for 4, flag, offside defense"]),
         ("Situation", ["home ball, first and 10, ball on our 40", "third and 4", "ball on their 35", "start of the second quarter"]),
-        ("Fix mistakes", ["scratch that", "undo"]),
+        ("Fix mistakes", ["scratch that", "undo", "redo (puts back the last undone play)"]),
     ]
 
     var body: some View {
@@ -316,4 +394,49 @@ struct MockLensPreview: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+struct PlayingClip: Identifiable {
+    let url: URL
+    let ref: VideoRef
+    let title: String
+    var id: String { "\(url.lastPathComponent)@\(ref.start)" }
+}
+
+/// Plays one play's clip: the stretch of game video before and after the call.
+struct ClipPlayerView: View {
+    let clip: PlayingClip
+    @Environment(\.dismiss) private var dismiss
+    @State private var player = AVPlayer()
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                VideoPlayer(player: player)
+                    .aspectRatio(504.0 / 896.0, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                Text("\(clip.ref.assetID) · \(ScorebookView.clock(clip.ref.start))–\(ScorebookView.clock(clip.ref.end))")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Button("Replay", systemImage: "arrow.counterclockwise") { play() }
+            }
+            .padding()
+            .navigationTitle(clip.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() } }
+            .onAppear {
+                player.replaceCurrentItem(with: AVPlayerItem(url: clip.url))
+                play()
+            }
+            .onDisappear { player.pause() }
+        }
+    }
+
+    private func play() {
+        guard let item = player.currentItem else { return }
+        item.forwardPlaybackEndTime = CMTime(seconds: clip.ref.end, preferredTimescale: 600)
+        player.seek(to: CMTime(seconds: clip.ref.start, preferredTimescale: 600),
+                    toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+            Task { @MainActor in player.play() }
+        }
+    }
 }

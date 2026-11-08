@@ -2,7 +2,7 @@ import Foundation
 
 /// The result of parsing one spoken (or typed) play call.
 public struct ParsedUtterance: Sendable, Equatable {
-    public enum Command: String, Sendable, Equatable { case undo }
+    public enum Command: String, Sendable, Equatable { case undo, redo }
 
     public var raw: String
     public var normalized: String
@@ -43,6 +43,10 @@ public enum FootballVoiceParser {
         if text.isEmpty { result.confidence = 0; return result }
 
         // Commands
+        if matches(text, #"^(redo|re do|put (it|that) back|bring (it|that) back|restore( that| it)?|undo (the |that )?undo)$"#) {
+            result.command = .redo
+            return result
+        }
         if matches(text, #"^(undo|scratch that|cancel|cancel that|delete( that| last)?|never ?mind|take that back)$"#) {
             result.command = .undo
             return result

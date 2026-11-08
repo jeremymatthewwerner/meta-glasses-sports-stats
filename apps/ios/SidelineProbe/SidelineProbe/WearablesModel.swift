@@ -22,6 +22,7 @@ final class WearablesModel {
     private(set) var glasses: [GlassesRow] = []
     var selectedID: DeviceIdentifier?
     private(set) var cameraPermission: String = "not checked"
+    private(set) var micPermission: String = "not checked"
     private(set) var lastError: String?
     private(set) var mockEnabled = false
     /// The most recently paired mock, so the app can show the mock Display preview.
@@ -36,7 +37,10 @@ final class WearablesModel {
         started = true
         let wearables = Wearables.shared
         registration = wearables.registrationState
-        if registration == .registered { checkCameraPermission(quiet: true) }
+        if registration == .registered {
+            checkCameraPermission(quiet: true)
+            checkMicPermission(quiet: true)
+        }
 
         Task { [weak self] in
             for await state in wearables.registrationStateStream() {
@@ -99,6 +103,25 @@ final class WearablesModel {
                 let status = try await Wearables.shared.checkPermissionStatus(.camera)
                 cameraPermission = status == .granted ? "granted" : "denied"
             } catch { if !quiet { report(error) } }
+        }
+    }
+
+    /// The glasses' microphone (for calling plays through the glasses).
+    func checkMicPermission(quiet: Bool = false) {
+        Task {
+            do {
+                let status = try await Wearables.shared.checkPermissionStatus(.microphone)
+                micPermission = status == .granted ? "granted" : "denied"
+            } catch { if !quiet { report(error) } }
+        }
+    }
+
+    func requestMicPermission() {
+        Task {
+            do {
+                let status = try await Wearables.shared.requestPermission(.microphone)
+                micPermission = status == .granted ? "granted" : "denied"
+            } catch { report(error) }
         }
     }
 

@@ -35,10 +35,24 @@ struct ContentView: View {
                             Label("Request camera permission", systemImage: "camera")
                         }
                     }
-                    Button("Re-check permission") { wearables.checkCameraPermission() }
+                    LabeledContent("Glasses mic permission", value: wearables.micPermission)
+                    if wearables.registration == .registered, wearables.micPermission != "granted" {
+                        Button {
+                            wearables.requestMicPermission()
+                        } label: {
+                            Label("Request mic permission (call plays through the glasses)", systemImage: "mic")
+                        }
+                    }
+                    Button("Re-check permissions") {
+                        wearables.checkCameraPermission()
+                        wearables.checkMicPermission()
+                    }
                 }
                 .onChange(of: wearables.registration) { _, state in
-                    if state == .registered { wearables.checkCameraPermission(quiet: true) }
+                    if state == .registered {
+                        wearables.checkCameraPermission(quiet: true)
+                        wearables.checkMicPermission(quiet: true)
+                    }
                 }
 
                 Section {

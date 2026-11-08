@@ -15,7 +15,7 @@ struct UtteranceLogEntry: Codable, Identifiable, Equatable {
     var confidence: Double
     var notes: [String]
     var eventID: UUID?
-    var outcome: String   // "added", "undo", "not understood"
+    var outcome: String   // "added", "undo", "redo", "not understood"
 }
 
 @MainActor
@@ -31,14 +31,27 @@ final class ScorebookModel {
     let speech = SpeechTranscriber()
     /// Heads-up scorebook on Meta Ray-Ban Display.
     let hud = GlassesHUD()
+    /// Undo/redo of play calls (session only; not saved with the game).
+    private(set) var history = UndoHistory()
+    /// Hands-free play calls started from the lens.
+    @ObservationIgnored private lazy var lensCall = LensCallController(hud: hud, phone: speech) { [weak self] text, startedAt in
+        self?.submitFromLens(text, startedAt: startedAt)
+    }
+    /// Game mode: the video files recorded for this game.
+    private(set) var recording: GameRecording
+    /// When the phone mic button was pressed (clip anchor for phone calls).
+    @ObservationIgnored private var phoneListenStartedAt = Date()
 
     init() {
+        let loadedGame: FootballGame
         if let saved = Self.loadLatest() {
-            game = saved.game
+            loadedGame = saved.game
             log = saved.log
         } else {
-            game = FootballGame(home: TeamInfo(name: "Home"), away: TeamInfo(name: "Away"))
+            loadedGame = FootballGame(home: TeamInfo(name: "Home"), away: TeamInfo(name: "Away"))
         }
+        game = loadedGame
+        recording = Self.loadRecording(for: loadedGame.id)
     }
 
     var state: FootballGameState { game.state }
@@ -54,11 +67,17 @@ final class ScorebookModel {
             // mic ends the DAT session (dat-ios #342). Use the phone mic
             // while the HUD is up.
             speech.allowBluetoothInput = !hud.isActive
-            Task { await speech.start { [weak self] text in self?.submit(text, source: .voice) } }
+            speech.onPartial = nil
+            phoneListenStartedAt = Date()
+            Task { await speech.start { [weak self] text in
+                guard let self else { return }
+                self.submit(text, source: .voice, anchor: self.phoneListenStartedAt)
+            } }
         }
     }
 
-    func submit(_ text: String, source: EventSource) {
+    /// `anchor`: when the wearer started calling the play (for its video clip).
+    func submit(_ text: String, source: EventSource, anchor: Date = Date()) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let parsed = FootballVoiceParser.parse(trimmed)
@@ -69,9 +88,13 @@ final class ScorebookModel {
             confidence: parsed.confidence, notes: [], eventID: nil, outcome: "not understood")
 
         if parsed.command == .undo {
-            let undone = game.rejectLast()
+            let undone = history.undo(in: &game)
             entry.outcome = "undo"
             entry.summary = undone.map { "undid: \($0.summary)" } ?? "nothing to undo"
+        } else if parsed.command == .redo {
+            let redone = history.redo(in: &game)
+            entry.outcome = "redo"
+            entry.summary = redone.map { "redid: \($0.summary)" } ?? "nothing to redo"
         } else if !parsed.isEmpty {
             let offense = parsed.situation?.possession ?? game.state.possession
             var play = parsed.play
@@ -83,10 +106,14 @@ final class ScorebookModel {
                 notes.append("passer assumed #\(qb)")
             }
             let status: EventStatus = (autoConfirm && parsed.confidence >= 0.9) ? .confirmed : .proposed
-            let event = FootballEvent(
+            var event = FootballEvent(
                 offense: offense, play: play, situation: parsed.situation, source: source,
-                status: status, confidence: parsed.confidence, transcript: trimmed)
+                status: status, confidence: parsed.confidence, transcript: trimmed, wallTime: anchor)
+            if play != nil, let file = hud.recordingFile, let t = hud.videoTime(at: anchor) {
+                event.videoRefs = [ClipPolicy.football.clip(assetID: file, anchor: t)]
+            }
             game.append(event)
+            history.clearRedo()
             entry.eventID = event.id
             entry.outcome = "added"
             entry.summary = event.summary
@@ -103,20 +130,51 @@ final class ScorebookModel {
 
     /// Rejects the newest play that still counts (lens "Undo" button).
     func undoLast() {
-        _ = game.rejectLast()
+        history.undo(in: &game)
         save()
     }
 
+    /// Puts back the most recently undone play (lens "Redo" button).
+    func redoLast() {
+        history.redo(in: &game)
+        save()
+    }
+
+    var redoTarget: FootballEvent? { history.redoTarget(in: game) }
+    var canUndo: Bool { game.events.contains { $0.status != .rejected } }
+
     // MARK: Glasses HUD
 
-    var hudContent: FootballHUD { FootballHUD(game: game) }
+    var hudContent: FootballHUD { FootballHUD(game: game, redo: redoTarget) }
+
+    var isCallingFromLens: Bool { lensCall.isListening }
+
+    func callPlayFromLens() {
+        if speech.isListening { speech.stop() }
+        Task { await lensCall.start() }
+    }
+
+    private func submitFromLens(_ text: String, startedAt: Date) {
+        submit(text, source: .voice, anchor: startedAt)
+        if let parse = lastParse, parse.isEmpty, parse.command == nil {
+            hud.setVoice(.note("Didn't catch a play in “\(text)”"))
+        }
+    }
 
     func toggleHUD(deviceID: DeviceIdentifier?) {
         if hud.isActive {
+            lensCall.cancel()
             hud.disconnect()
         } else {
             hud.onConfirm = { [weak self] id in self?.confirm(id) }
             hud.onUndo = { [weak self] in self?.undoLast() }
+            hud.onRedo = { [weak self] in self?.redoLast() }
+            hud.onCallPlay = { [weak self] in self?.callPlayFromLens() }
+            hud.onDoneListening = { [weak self] in self?.lensCall.finish() }
+            hud.onCancelListening = { [weak self] in self?.lensCall.cancel() }
+            hud.onRecordingFinished = { [weak self] file, frames, error in
+                self?.recordingFinished(file: file, frames: frames, error: error)
+            }
             Task { await hud.connect(deviceID: deviceID, initial: hudContent) }
         }
     }
@@ -128,12 +186,15 @@ final class ScorebookModel {
     }
 
     func newGame(home: String, away: String, openingKickoff: TeamSide, ruleSet: FootballRuleSet) {
+        if hud.isRecording { hud.stopRecording() }
         save()
         game = FootballGame(
             home: TeamInfo(name: home.isEmpty ? "Home" : home),
             away: TeamInfo(name: away.isEmpty ? "Away" : away),
             ruleSet: ruleSet, openingKickoff: openingKickoff)
         log = []
+        history = UndoHistory()
+        recording = GameRecording(gameID: game.id)
         lastParse = nil
         lastNotes = []
         save()
@@ -149,6 +210,67 @@ final class ScorebookModel {
     }
 
     // MARK: Persistence (Documents/games/<id>.json + <id>-utterances.json)
+
+    // MARK: Game video
+
+    /// Folder for this game's video files and recording.json.
+    var gameFolder: URL { Self.gamesDirectory.appendingPathComponent(game.id.uuidString, isDirectory: true) }
+
+    func clipURL(_ ref: VideoRef) -> URL { gameFolder.appendingPathComponent(ref.assetID) }
+
+    /// A clip can play once its file is finalized (recording stopped).
+    func clipIsReady(_ ref: VideoRef) -> Bool {
+        hud.recordingFile != ref.assetID && FileManager.default.fileExists(atPath: clipURL(ref).path)
+    }
+
+    var recordingError: String?
+
+    func toggleRecording() {
+        if hud.isRecording {
+            hud.stopRecording()
+            return
+        }
+        recordingError = nil
+        do {
+            try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+            let file = recording.nextFileName
+            try hud.startRecording(to: gameFolder.appendingPathComponent(file))
+            recording.segments.append(.init(file: file, startedAt: Date(),
+                                            source: "\(hud.statusText), HEVC 504x896 @15"))
+            saveRecording()
+        } catch {
+            recordingError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
+
+    private func recordingFinished(file: String, frames: Int, error: String?) {
+        if let i = recording.segments.firstIndex(where: { $0.file == file }) {
+            recording.segments[i].endedAt = Date()
+            recording.segments[i].frames = frames
+        }
+        if let error, frames == 0 { recordingError = "Recording failed: \(error)" }
+        saveRecording()
+    }
+
+    private func saveRecording() {
+        do {
+            try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+            enc.dateEncodingStrategy = .iso8601
+            try enc.encode(recording).write(to: gameFolder.appendingPathComponent("recording.json"), options: .atomic)
+        } catch {
+            print("[Scorebook] recording save failed: \(error)")
+        }
+    }
+
+    private static func loadRecording(for gameID: UUID) -> GameRecording {
+        let url = gamesDirectory.appendingPathComponent(gameID.uuidString).appendingPathComponent("recording.json")
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        return (try? Data(contentsOf: url)).flatMap { try? dec.decode(GameRecording.self, from: $0) }
+            ?? GameRecording(gameID: gameID)
+    }
 
     static var gamesDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

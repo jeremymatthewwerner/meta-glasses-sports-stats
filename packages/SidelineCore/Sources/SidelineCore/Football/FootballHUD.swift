@@ -19,11 +19,13 @@ public struct FootballHUD: Equatable, Sendable {
     public var lastPlayNeedsConfirm: Bool
     /// Plays still waiting for confirmation, across the whole game.
     public var pendingCount: Int
+    /// Summary of the play a Redo would restore, right after an Undo.
+    public var redoPlay: String?
 
     public static let maxTeamName = 10
     public static let maxPlayLength = 48
 
-    public init(game: FootballGame) {
+    public init(game: FootballGame, redo: FootballEvent? = nil) {
         let state = game.state
         func side(_ s: TeamSide) -> String {
             "\(Self.shortName(game.team(s).name)) \(state.points(s))"
@@ -39,6 +41,7 @@ public struct FootballHUD: Equatable, Sendable {
         lastPlayID = last?.id
         lastPlayNeedsConfirm = last?.status == .proposed
         pendingCount = game.events.filter { $0.status == .proposed }.count
+        redoPlay = redo.map { Self.truncate($0.summary, to: Self.maxPlayLength) }
     }
 
     static func shortName(_ name: String) -> String {

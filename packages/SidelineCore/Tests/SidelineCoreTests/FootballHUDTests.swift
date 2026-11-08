@@ -50,3 +50,71 @@ import Testing
         #expect(hud.scoreLine.contains("SPRINGFIE…"))
     }
 }
+
+@Suite struct UndoRedoTests {
+    func event(_ s: String, _ game: FootballGame, status: EventStatus = .proposed) -> FootballEvent {
+        let r = FootballVoiceParser.parse(s)
+        return FootballEvent(offense: game.state.possession, play: r.play, situation: r.situation,
+                             source: .voice, status: status, transcript: s)
+    }
+
+    @Test func redoRestoresPreviousStatusInOrder() {
+        var g = FootballGame(home: TeamInfo(name: "A"), away: TeamInfo(name: "B"), openingKickoff: .away)
+        var h = UndoHistory()
+        g.append(event("kickoff touchback", g, status: .confirmed))
+        g.append(event("22 run for 4", g))
+        let afterRun = g.state
+
+        h.undo(in: &g)          // rejects the run
+        h.undo(in: &g)          // rejects the kickoff
+        #expect(g.state.phase == .kickoff)
+        #expect(h.redoTarget(in: g)?.id == g.events[0].id)
+
+        h.redo(in: &g)          // kickoff back, still confirmed
+        #expect(g.events[0].status == .confirmed)
+        h.redo(in: &g)          // run back, still proposed
+        #expect(g.events[1].status == .proposed)
+        #expect(g.state == afterRun)
+        #expect(!h.canRedo)
+        #expect(h.redo(in: &g) == nil)
+    }
+
+    @Test func newPlayClearsRedo() {
+        var g = FootballGame(home: TeamInfo(name: "A"), away: TeamInfo(name: "B"))
+        var h = UndoHistory()
+        g.append(event("kickoff touchback", g))
+        h.undo(in: &g)
+        h.clearRedo()
+        #expect(!h.canRedo)
+        #expect(h.redoTarget(in: g) == nil)
+    }
+
+    @Test func redoSkipsPlaysRestoredByHand() {
+        var g = FootballGame(home: TeamInfo(name: "A"), away: TeamInfo(name: "B"))
+        var h = UndoHistory()
+        g.append(event("kickoff touchback", g))
+        g.append(event("22 run for 4", g))
+        h.undo(in: &g)                                  // run
+        h.undo(in: &g)                                  // kickoff
+        g.setStatus(.confirmed, for: g.events[0].id)    // kickoff swiped back by hand
+        let restored = h.redo(in: &g)
+        #expect(restored?.id == g.events[1].id)         // skips straight to the run
+    }
+
+    @Test func hudShowsRedoTarget() {
+        var g = FootballGame(home: TeamInfo(name: "A"), away: TeamInfo(name: "B"))
+        var h = UndoHistory()
+        g.append(event("kickoff touchback", g))
+        h.undo(in: &g)
+        let hud = FootballHUD(game: g, redo: h.redoTarget(in: g))
+        #expect(hud.lastPlay == nil)
+        #expect(hud.redoPlay != nil)
+    }
+
+    @Test func redoVoiceCommands() {
+        for s in ["redo", "put it back", "bring that back", "undo the undo", "Redo."] {
+            #expect(FootballVoiceParser.parse(s).command == .redo, "\(s)")
+        }
+        #expect(FootballVoiceParser.parse("scratch that").command == .undo)
+    }
+}
