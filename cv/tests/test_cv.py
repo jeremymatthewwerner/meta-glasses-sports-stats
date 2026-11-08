@@ -116,4 +116,4 @@ def test_slug_and_markdown():
         {"index": 3, "transcript": "22 run for 7", "kind": "rush", "clip": {"asset": "glasses-01.mov", "start": 1, "end": 18},
          "sampled_frames": 85, "mean_people_per_frame": 6.2, "tracks": [{}, {}],
          "called_players": [{"team": "home", "jersey": 22, "role": "ballCarrier"}]}]})
-    assert "| 3 | 22 run for 7 | glasses-01.mov 1.0–18.0s | 85 | 6.2 | 2 | home #22 (ballCarrier) |" in md
+    assert "| 3 | 22 run for 7 | glasses-01.mov 1.0–18.0s | – | 85 | 6.2 | 2 | home #22 (ballCarrier) | – |" in md

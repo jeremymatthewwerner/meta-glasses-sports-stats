@@ -41,6 +41,8 @@ public struct TeamInfo: Codable, Sendable, Equatable {
     public var shortName: String
     /// Optional; older saved games have none.
     public var roster: Roster?
+    /// Jersey color found by computer vision, "#rrggbb".
+    public var jerseyColor: String?
 
     public init(name: String, shortName: String? = nil, roster: Roster? = nil) {
         self.name = name

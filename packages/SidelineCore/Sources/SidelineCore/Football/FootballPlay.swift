@@ -128,6 +128,8 @@ public struct FootballEvent: Codable, Sendable, Equatable, Identifiable {
     public var transcript: String?
     public var wallTime: Date
     public var videoRefs: [VideoRef]
+    /// What computer vision found for this play (set by importing a CV report).
+    public var cv: CVPlayNote?
 
     public init(
         id: UUID = UUID(), offense: TeamSide, play: FootballPlay? = nil, situation: SituationUpdate? = nil,

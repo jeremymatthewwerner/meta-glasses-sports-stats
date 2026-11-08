@@ -13,6 +13,7 @@ struct ScorebookView: View {
     @State private var showNewGame = false
     @State private var showHelp = false
     @State private var showRosters = false
+    @State private var importingCV = false
     @FocusState private var typing: Bool
 
     var body: some View {
@@ -66,6 +67,7 @@ struct ScorebookView: View {
                     Menu {
                         Button("New game…") { showNewGame = true }
                         Button("Rosters…") { showRosters = true }
+                        Button("Import CV results…") { importingCV = true }
                         Button("Confirm all proposed") { model.confirmAll() }
                         Toggle("Auto-confirm confident plays", isOn: $model.autoConfirm)
                         Picker("Stat rules", selection: Binding(get: { model.game.ruleSet }, set: { model.setRuleSet($0) })) {
@@ -94,6 +96,12 @@ struct ScorebookView: View {
             .sheet(isPresented: $showHelp) { PhraseHelpView() }
             .sheet(item: $playingClip) { ClipPlayerView(clip: $0) }
             .sheet(isPresented: $showRosters) { RosterEditorView() }
+            .fileImporter(isPresented: $importingCV, allowedContentTypes: [.json]) { result in
+                if case .success(let url) = result { model.importCV(from: url) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                model.importDroppedCVReport()
+            }
         }
     }
 
@@ -208,6 +216,11 @@ struct ScorebookView: View {
             if let err = model.speech.error {
                 Text(err).font(.footnote).foregroundStyle(.red)
             }
+            if let cv = model.cvStatus {
+                Label(cv, systemImage: "eye")
+                    .font(.footnote).foregroundStyle(cv.contains("failed") ? .red : .secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if !model.lastNotes.isEmpty {
                 Text("Assumed: " + model.lastNotes.joined(separator: "; "))
                     .font(.footnote).foregroundStyle(.orange)
@@ -261,6 +274,11 @@ struct Scoreboard: View {
         VStack(spacing: 2) {
             HStack(spacing: 4) {
                 if state.possession == side { Image(systemName: "football.fill").font(.caption) }
+                if let hex = game.team(side).jerseyColor, let color = Color(hex: hex) {
+                    Circle().fill(color).overlay(Circle().stroke(.secondary, lineWidth: 0.5))
+                        .frame(width: 10, height: 10)
+                        .accessibilityLabel("jersey color")
+                }
                 Text(game.team(side).name).font(.caption).lineLimit(1)
             }
             Text("\(state.points(side))").font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
@@ -288,6 +306,12 @@ struct EventRow: View {
             if event.confidence < 0.9, event.status == .proposed {
                 Text("confidence \(Int(event.confidence * 100))% · swipe right to confirm, left to reject")
                     .font(.caption2).foregroundStyle(.orange)
+            }
+            if let cv = event.cv {
+                let text = cv.summary.isEmpty ? "CV: no called players to check" : "CV: " + cv.summary
+                Label(text + (cv.trimmed ? " · clip trimmed to the play" : ""), systemImage: "eye")
+                    .font(.caption2)
+                    .foregroundStyle(cv.seen.contains(where: \.teamConflict) ? .orange : .secondary)
             }
             if let ref = event.videoRefs.first {
                 if clipReady {
@@ -446,5 +470,14 @@ struct ClipPlayerView: View {
                     toleranceBefore: .zero, toleranceAfter: .zero) { _ in
             Task { @MainActor in player.play() }
         }
+    }
+}
+
+extension Color {
+    /// "#rrggbb" → Color.
+    init?(hex: String) {
+        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard h.count == 6, let v = UInt32(h, radix: 16) else { return nil }
+        self.init(red: Double((v >> 16) & 0xff) / 255, green: Double((v >> 8) & 0xff) / 255, blue: Double(v & 0xff) / 255)
     }
 }

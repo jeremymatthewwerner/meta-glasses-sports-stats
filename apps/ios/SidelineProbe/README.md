@@ -66,6 +66,10 @@ In the simulator the mock camera plays the bundled field video at 30 fps, so rec
 - **Make highlight reel:** stitches the finished clips of any list (one player, all touchdowns, …) into one video without re-encoding, saved to `games/<id>/reels/`, then **Play** or **Share**.
 - **Rosters (Scorebook ⋯ menu):** paste or import a CSV per team, one player per line: `22,Jane Smith,RB` (tabs, `#22 Jane Smith` and a header row also work). Names then appear in the gallery.
 
+## CV results from the Mac
+
+The `cv/` pipeline (see [cv/README.md](../../../cv/README.md)) writes a `report.json` per game. Put it in `games/<game id>/cv-report.json` (Files or Finder) and the app imports it on launch or when it returns to the foreground; or Scorebook ⋯ → **Import CV results…**. Plays then show "CV: #22 ✓ · #54 not seen" (⚠ when a number was read on the other team's colors), clips are trimmed to the detected action with the original kept, and the scoreboard shows team-color dots.
+
 ## Without glasses
 
 **Mock glasses** pairs a simulated device through MockDeviceKit. On a phone it can stream the back camera; in the simulator, choose a video file. Mock runs exercise the app flow only. They say nothing about battery or thermal behavior.

@@ -52,6 +52,7 @@ final class ScorebookModel {
         }
         game = loadedGame
         recording = Self.loadRecording(for: loadedGame.id)
+        importDroppedCVReport()
     }
 
     var state: FootballGameState { game.state }
@@ -270,6 +271,39 @@ final class ScorebookModel {
         dec.dateDecodingStrategy = .iso8601
         return (try? Data(contentsOf: url)).flatMap { try? dec.decode(GameRecording.self, from: $0) }
             ?? GameRecording(gameID: gameID)
+    }
+
+    // MARK: CV results (from the Mac pipeline, cv/)
+
+    /// Last import result, shown on the scorebook.
+    var cvStatus: String?
+
+    /// Applies a sideline-cv report.json to this game.
+    @discardableResult
+    func importCV(from url: URL) -> Bool {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let report = try CVReport.decode(Data(contentsOf: url))
+            let summary = try game.applyCV(report)
+            cvStatus = "CV imported: " + summary.text
+            save()
+            return true
+        } catch {
+            cvStatus = "CV import failed: " + ((error as? LocalizedError)?.errorDescription ?? "\(error)")
+            return false
+        }
+    }
+
+    /// Picks up games/<id>/cv-report.json (copied in with Files or Finder) when it's newer than the last import.
+    func importDroppedCVReport() {
+        let url = gameFolder.appendingPathComponent("cv-report.json")
+        guard let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        else { return }
+        let key = "cvImported-\(game.id.uuidString)"
+        let last = UserDefaults.standard.object(forKey: key) as? Date
+        guard last == nil || modified > last! else { return }
+        if importCV(from: url) { UserDefaults.standard.set(modified, forKey: key) }
     }
 
     // MARK: Gallery, rosters, reels

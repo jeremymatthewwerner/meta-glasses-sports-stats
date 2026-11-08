@@ -81,3 +81,30 @@ class TrackBook:
         """Tracks seen at least `min_frames` times, longest first."""
         keep = [s for s in self.tracks.values() if s.frames >= min_frames]
         return sorted(keep, key=lambda s: (-s.frames, s.track_id))
+
+
+class CropKeeper:
+    """Keeps the `k` best crops per track (by crop score), at least
+    `min_gap` seconds apart, so jersey reading can vote across angles."""
+
+    def __init__(self, k: int = 6, min_gap: float = 0.3):
+        self.k = k
+        self.min_gap = min_gap
+        self.crops: dict[int, list[tuple[float, float, np.ndarray]]] = {}
+
+    def offer(self, track_id: int, score: float, t: float, crop: np.ndarray) -> None:
+        if crop is None or not crop.size:
+            return
+        items = self.crops.setdefault(track_id, [])
+        near = [i for i, (_, ti, _) in enumerate(items) if abs(ti - t) < self.min_gap]
+        if near:
+            i = near[0]
+            if score > items[i][0]:
+                items[i] = (score, t, crop.copy())
+        else:
+            items.append((score, t, crop.copy()))
+        items.sort(key=lambda x: -x[0])
+        del items[self.k:]
+
+    def best(self, track_id: int) -> list[np.ndarray]:
+        return [c for _, _, c in self.crops.get(track_id, [])]
