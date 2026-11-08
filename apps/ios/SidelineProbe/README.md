@@ -66,6 +66,13 @@ In the simulator the mock camera plays the bundled field video at 30 fps, so rec
 - **Make highlight reel:** stitches the finished clips of any list (one player, all touchdowns, …) into one video without re-encoding, saved to `games/<id>/reels/`, then **Play** or **Share**.
 - **Rosters (Scorebook ⋯ menu):** paste or import a CSV per team, one player per line: `22,Jane Smith,RB` (tabs, `#22 Jane Smith` and a header row also work). Names then appear in the gallery.
 
+## Library, game summaries and season stats
+
+- **Library tab:** every saved game (newest first) with score, date and Final / In progress. Tap a game for its **summary**: score by quarter, a written recap ("Eagles beat Hawks 13–0. #22 Jane Smith ran for 55 yards on 2 carries and a touchdown…"), the scoring summary with the running score, leaders (passing, rushing, receiving, tackles) and key plays with clips. **Open in Scorebook** switches the scorebook (and Gallery) to that game. Swipe to delete an old game and its videos (asks first).
+- **Season:** per team name, the record (W–L–T over games marked ended) and per-player totals across games (passing, rushing, receiving, defense), using roster names.
+- **Scorebook ⋯ → End game / Reopen game** marks a game final (the scoreboard shows FINAL; the recap says "beat" instead of "lead"); **Game summary** opens the summary for the current game.
+- Everything is on the phone for now; an online library (sync + sharing) is a later step.
+
 ## CV results from the Mac
 
 The `cv/` pipeline (see [cv/README.md](../../../cv/README.md)) writes a `report.json` per game. Put it in `games/<game id>/cv-report.json` (Files or Finder) and the app imports it on launch or when it returns to the foreground; or Scorebook ⋯ → **Import CV results…**. Plays then show "CV: #22 ✓ · #54 not seen" (⚠ when a number was read on the other team's colors), clips are trimmed to the detected action with the original kept, and the scoreboard shows team-color dots.

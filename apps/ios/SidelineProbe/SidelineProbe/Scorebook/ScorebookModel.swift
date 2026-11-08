@@ -53,6 +53,7 @@ final class ScorebookModel {
         game = loadedGame
         recording = Self.loadRecording(for: loadedGame.id)
         importDroppedCVReport()
+        refreshLibrary()
     }
 
     var state: FootballGameState { game.state }
@@ -306,6 +307,65 @@ final class ScorebookModel {
         if importCV(from: url) { UserDefaults.standard.set(modified, forKey: key) }
     }
 
+    // MARK: Library (every saved game)
+
+    struct SavedGame: Identifiable {
+        var game: FootballGame
+        var id: UUID { game.id }
+    }
+
+    /// All saved games, newest first.
+    private(set) var library: [SavedGame] = []
+
+    func refreshLibrary() {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let files = (try? FileManager.default.contentsOfDirectory(at: Self.gamesDirectory, includingPropertiesForKeys: nil)) ?? []
+        var games = files
+            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix("-utterances.json") }
+            .compactMap { url in (try? Data(contentsOf: url)).flatMap { try? dec.decode(FootballGame.self, from: $0) } }
+        if !games.contains(where: { $0.id == game.id }) { games.append(game) }
+        if let i = games.firstIndex(where: { $0.id == game.id }) { games[i] = game }   // in-memory is newest
+        library = games.sorted { $0.date > $1.date }.map(SavedGame.init)
+    }
+
+    /// Switches the scorebook to another saved game.
+    func openGame(_ id: UUID) {
+        guard id != game.id, let target = library.first(where: { $0.id == id })?.game else { return }
+        if hud.isRecording { hud.stopRecording() }
+        save()
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        game = target
+        log = (try? Data(contentsOf: utterancesFile)).flatMap { try? dec.decode([UtteranceLogEntry].self, from: $0) } ?? []
+        recording = Self.loadRecording(for: target.id)
+        history = UndoHistory()
+        lastParse = nil
+        lastNotes = []
+        cvStatus = nil
+        save()                       // marks it most recent, so it reopens next launch
+        importDroppedCVReport()
+    }
+
+    /// Deletes a saved game and its videos. The open game can't be deleted.
+    func deleteGame(_ id: UUID) {
+        guard id != game.id else { return }
+        let fm = FileManager.default
+        let base = Self.gamesDirectory
+        try? fm.removeItem(at: base.appendingPathComponent("\(id.uuidString).json"))
+        try? fm.removeItem(at: base.appendingPathComponent("\(id.uuidString)-utterances.json"))
+        try? fm.removeItem(at: base.appendingPathComponent(id.uuidString, isDirectory: true))
+        UserDefaults.standard.removeObject(forKey: "cvImported-\(id.uuidString)")
+        library.removeAll { $0.id == id }
+    }
+
+    func setEnded(_ ended: Bool) {
+        game.ended = ended
+        save()
+    }
+
+    func folder(for gameID: UUID) -> URL { Self.gamesDirectory.appendingPathComponent(gameID.uuidString, isDirectory: true) }
+
     // MARK: Gallery, rosters, reels
 
     var gallery: FootballGallery { FootballGallery(game: game) }
@@ -346,6 +406,8 @@ final class ScorebookModel {
 
     func save() {
         hud.show(hudContent)
+        if let i = library.firstIndex(where: { $0.id == game.id }) { library[i].game = game }
+        else if !library.isEmpty || !game.events.isEmpty { library.insert(SavedGame(game: game), at: 0) }
         do {
             try FileManager.default.createDirectory(at: Self.gamesDirectory, withIntermediateDirectories: true)
             let enc = JSONEncoder()

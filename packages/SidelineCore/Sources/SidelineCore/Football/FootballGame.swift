@@ -64,6 +64,10 @@ public struct FootballGame: Codable, Sendable, Equatable, Identifiable {
     /// Which team kicks off to start the game.
     public var openingKickoff: TeamSide
     public var events: [FootballEvent]
+    /// Set when the scorer marks the game over (older saves: nil = in progress).
+    public var ended: Bool?
+
+    public var isOver: Bool { ended == true }
 
     public init(
         id: UUID = UUID(), date: Date = Date(), home: TeamInfo, away: TeamInfo,

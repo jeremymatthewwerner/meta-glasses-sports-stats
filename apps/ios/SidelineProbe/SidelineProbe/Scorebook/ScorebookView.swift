@@ -14,6 +14,7 @@ struct ScorebookView: View {
     @State private var showHelp = false
     @State private var showRosters = false
     @State private var importingCV = false
+    @State private var showSummary = false
     @FocusState private var typing: Bool
 
     var body: some View {
@@ -68,6 +69,8 @@ struct ScorebookView: View {
                         Button("New game…") { showNewGame = true }
                         Button("Rosters…") { showRosters = true }
                         Button("Import CV results…") { importingCV = true }
+                        Button("Game summary") { showSummary = true }
+                        Button(model.game.isOver ? "Reopen game" : "End game") { model.setEnded(!model.game.isOver) }
                         Button("Confirm all proposed") { model.confirmAll() }
                         Toggle("Auto-confirm confident plays", isOn: $model.autoConfirm)
                         Picker("Stat rules", selection: Binding(get: { model.game.ruleSet }, set: { model.setRuleSet($0) })) {
@@ -96,6 +99,12 @@ struct ScorebookView: View {
             .sheet(isPresented: $showHelp) { PhraseHelpView() }
             .sheet(item: $playingClip) { ClipPlayerView(clip: $0) }
             .sheet(isPresented: $showRosters) { RosterEditorView() }
+            .sheet(isPresented: $showSummary) {
+                NavigationStack {
+                    GameSummaryView(game: model.game)
+                        .toolbar { Button("Done") { showSummary = false } }
+                }
+            }
             .fileImporter(isPresented: $importingCV, allowedContentTypes: [.json]) { result in
                 if case .success(let url) = result { model.importCV(from: url) }
             }
@@ -256,7 +265,7 @@ struct Scoreboard: View {
                 team(.away)
                 Spacer()
                 VStack {
-                    Text(state.quarter >= 5 ? "OT" : "Q\(state.quarter)").font(.caption.bold())
+                    Text(game.isOver ? "FINAL" : state.quarter >= 5 ? "OT" : "Q\(state.quarter)").font(.caption.bold())
                     Text(game.ruleSet.name).font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
