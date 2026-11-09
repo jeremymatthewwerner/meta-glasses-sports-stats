@@ -12,7 +12,12 @@ struct RootView: View {
                 }
             }
             .tabItem { Label("Scorebook", systemImage: sport == .soccer ? "soccerball" : "list.clipboard") }
-            GalleryView()
+            Group {
+                switch sport {
+                case .football: GalleryView()
+                case .soccer: SoccerGalleryView()
+                }
+            }
                 .tabItem { Label("Gallery", systemImage: "square.grid.2x2") }
             LibraryView()
                 .tabItem { Label("Library", systemImage: "books.vertical") }

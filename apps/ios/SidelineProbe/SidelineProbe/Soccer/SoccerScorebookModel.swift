@@ -21,9 +21,13 @@ final class SoccerScorebookModel {
 
     let hud: GlassesHUD
     let speech: SpeechTranscriber
-    @ObservationIgnored private lazy var lensCall = LensCallController(hud: hud, phone: speech) { [weak self] text, _ in
-        self?.submitFromLens(text)
+    @ObservationIgnored private lazy var lensCall = LensCallController(hud: hud, phone: speech) { [weak self] text, startedAt in
+        self?.submitFromLens(text, startedAt: startedAt)
     }
+    /// When the phone mic button was pressed (the call's time and clip anchor).
+    @ObservationIgnored private var phoneListenStartedAt = Date()
+    var recordingError: String?
+    @ObservationIgnored private var recordingGameID: UUID?
     /// Whether this scorebook (not football's) currently drives the lens.
     private(set) var drivesLens = false
     /// Imported camera videos for this game.
@@ -56,7 +60,11 @@ final class SoccerScorebookModel {
         } else {
             speech.allowBluetoothInput = !hud.isActive     // HFP mic ends Display sessions (dat-ios #342)
             speech.onPartial = nil
-            Task { await speech.start { [weak self] text in self?.submit(text, source: .voice) } }
+            phoneListenStartedAt = Date()
+            Task { await speech.start { [weak self] text in
+                guard let self else { return }
+                self.submit(text, source: .voice, at: self.phoneListenStartedAt)
+            } }
         }
     }
 
@@ -87,6 +95,7 @@ final class SoccerScorebookModel {
         save()
     }
 
+    /// `date`: when the wearer started the call (its time, and its clip's anchor).
     /// Quick buttons and lens actions (no transcript).
     func quick(_ action: SoccerAction) {
         lastParse = nil
@@ -99,8 +108,11 @@ final class SoccerScorebookModel {
         // Period changes and taps are facts; calls wait for a confirm unless confident and auto-confirm is on.
         let sure = action.kind == .periodStart || action.kind == .periodEnd || source == .human
         let status: EventStatus = sure || (autoConfirm && confidence >= 0.9) ? .confirmed : .proposed
-        let e = SoccerEvent(action: action, source: source, status: status, confidence: confidence,
+        var e = SoccerEvent(action: action, source: source, status: status, confidence: confidence,
                             transcript: transcript, wallTime: date)
+        if action.wantsClip, let file = hud.recordingFile, let t = hud.videoTime(at: date) {
+            e.videoRefs = [ClipPolicy.soccer.clip(assetID: file, anchor: t)]
+        }
         game.append(e)
         redoStack.removeAll()
         return e
@@ -165,6 +177,7 @@ final class SoccerScorebookModel {
     // MARK: Games
 
     func newGame(home: String, away: String, format: SoccerFormat, focus: TeamSide) {
+        if drivesLens, hud.isRecording { hud.stopRecording() }
         save()
         game = SoccerGame(home: TeamInfo(name: home.isEmpty ? "Home" : home),
                           away: TeamInfo(name: away.isEmpty ? "Away" : away), format: format, focus: focus)
@@ -204,6 +217,7 @@ final class SoccerScorebookModel {
 
     func openGame(_ id: UUID) {
         guard id != game.id, let target = library.first(where: { $0.id == id }) else { return }
+        if drivesLens, hud.isRecording { hud.stopRecording() }
         save()
         game = target
         log = GameFiles.utterances(for: id)
@@ -237,7 +251,9 @@ final class SoccerScorebookModel {
             hud.onClock = nil                 // no play clock in soccer
             hud.onDoneListening = { [weak self] in self?.lensCall.finish() }
             hud.onCancelListening = { [weak self] in self?.lensCall.cancel() }
-            hud.onRecordingFinished = nil
+            hud.onRecordingFinished = { [weak self] file, frames, error in
+                self?.recordingFinished(file: file, frames: frames, error: error)
+            }
             drivesLens = true
             Task { await hud.connect(deviceID: deviceID, initial: hudContent) }
         }
@@ -256,8 +272,8 @@ final class SoccerScorebookModel {
         Task { await lensCall.start() }
     }
 
-    private func submitFromLens(_ text: String) {
-        submit(text, source: .voice)
+    private func submitFromLens(_ text: String, startedAt: Date) {
+        submit(text, source: .voice, at: startedAt)
         if let p = lastParse, p.isEmpty {
             hud.setVoice(.note("Didn't catch a call in “\(text)”"))
         }
@@ -266,6 +282,61 @@ final class SoccerScorebookModel {
     /// The lens minute only changes once a minute; refresh it then.
     func tickLens() {
         if drivesLens, hud.isActive, state.running { hud.show(hudContent) }
+    }
+
+    // MARK: Glasses video
+
+    var isRecording: Bool { drivesLens && hud.isRecording }
+
+    /// Starts or stops recording the glasses camera into this game's folder.
+    func toggleRecording() {
+        guard drivesLens else { return }
+        if hud.isRecording {
+            hud.stopRecording()
+            return
+        }
+        recordingError = nil
+        do {
+            try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+            let file = recording.nextFileName
+            try hud.startRecording(to: gameFolder.appendingPathComponent(file))
+            recording.segments.append(.init(file: file, startedAt: Date(), source: "\(hud.statusText), HEVC 504x896 @15"))
+            recordingGameID = game.id
+            GameFiles.saveRecording(recording)
+        } catch {
+            recordingError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
+
+    private func recordingFinished(file: String, frames: Int, error: String?) {
+        // New game / open game stop the video first, so it may finish after the switch.
+        let id = recordingGameID ?? game.id
+        recordingGameID = nil
+        var r = id == game.id ? recording : GameFiles.recording(for: id)
+        guard let i = r.segments.firstIndex(where: { $0.file == file }) else { return }
+        r.segments[i].endedAt = Date()
+        r.segments[i].frames = frames
+        if id == game.id { recording = r }
+        GameFiles.saveRecording(r)
+        if let error, frames == 0 { recordingError = "Recording failed: \(error)" }
+    }
+
+    /// A glasses clip can play once its file is finished (recording stopped).
+    func clipIsReady(_ ref: VideoRef) -> Bool {
+        !(hud.isRecording && hud.recordingFile == ref.assetID && drivesLens)
+            && FileManager.default.fileExists(atPath: videoURL(ref).path)
+    }
+
+    var gallery: SoccerGallery { SoccerGallery(game: game) }
+
+    /// The clips a reel would use: each event's glasses clip, else its camera clip.
+    func reelClip(_ e: SoccerEvent) -> VideoRef? {
+        if let ref = e.videoRefs.first, clipIsReady(ref) { return ref }
+        return cameraClip(at: e.wallTime)
+    }
+
+    func makeReel(title: String, events: [SoccerEvent]) async throws -> URL {
+        try await ReelExporter.makeReel(title: title, refs: events.compactMap(reelClip), folder: gameFolder)
     }
 
     // MARK: Files

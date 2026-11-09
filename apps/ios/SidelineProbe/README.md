@@ -94,7 +94,9 @@ Scorebook ⋯ → **Switch to soccer** (and back to football from the soccer men
 - **Stats:** team shots (on target), saves, corners, fouls, offsides and cards, and per-player goals, assists, shots, saves, fouls and cards. **Game summary** has a written recap and the goals with minutes and running score. Rosters put names on numbers.
 - **Lens:** score, period and minute, the last event with Confirm / Call / Undo / Redo (no play-clock button in soccer).
 - **Library:** soccer games have their own section with a game page (recap, goals, team stats) and **Open in scorebook**.
-- **Not in soccer yet:** glasses game-mode video, gallery and reels, web export, spoken cues, and CV import. Camera videos can be imported (below). The engine is `Soccer/` in SidelineCore (`SoccerGame`, `SoccerVoiceParser`, stats, recap, `SoccerHUD`).
+- **Match video from the glasses:** with the glasses connected, **Record match video** records the glasses camera into the game's folder (as in football). Each call then gets a **Glasses** clip from 20 s before the call to 4 s after (soccer calls come after the moment); kickoff and half-time taps don't. A clip plays once the video is stopped. When an imported camera video also covers the moment, the event shows a **Camera** clip too.
+- **Gallery:** with soccer selected, the Gallery tab shows the match by player (goals, assists, shots, saves, fouls, cards…) and by category (goals, chances, saves, cards, fouls and offsides, corners). Any list can become a highlight reel, using each event's glasses clip, or its camera clip when there's no glasses video.
+- **Not in soccer yet:** web export, spoken cues, and CV import. The engine is `Soccer/` in SidelineCore (`SoccerGame`, `SoccerVoiceParser`, stats, recap, `SoccerHUD`).
 
 ## Game videos from another camera (Veo, phone on a tripod)
 

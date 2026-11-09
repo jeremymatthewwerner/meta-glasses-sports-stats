@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import SidelineCore
 
 /// Stitches play clips (stretches of the game video files) into one
 /// highlight reel, in order, without re-encoding.
@@ -75,5 +76,18 @@ enum ReelExporter {
             }
         }
         return CMTimeGetSeconds(cursor)
+    }
+
+    /// Stitches `refs` (clips of files in `folder`) into reels/reel-<title>-<time>.mov there.
+    static func makeReel(title: String, refs: [VideoRef], folder: URL) async throws -> URL {
+        let pieces = refs.map { Piece(url: folder.appendingPathComponent($0.assetID), start: $0.start, end: $0.end) }
+        let slug = title.lowercased()
+            .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
+            .joined(separator: "-")
+        let stamp = Int(Date().timeIntervalSince1970)
+        let url = folder.appendingPathComponent("reels", isDirectory: true)
+            .appendingPathComponent("reel-\(slug.isEmpty ? "plays" : slug)-\(stamp).mov")
+        _ = try await export(pieces, to: url)
+        return url
     }
 }

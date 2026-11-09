@@ -49,7 +49,8 @@ struct SoccerScorebookView: View {
                                 .foregroundStyle(.secondary)
                         }
                         ForEach(model.game.events.reversed()) { e in
-                            SoccerEventRow(game: model.game, event: e, clip: model.cameraClip(at: e.wallTime)) { ref in
+                            SoccerEventRow(game: model.game, event: e, glassesReady: e.videoRefs.first.map(model.clipIsReady) ?? false,
+                                           camera: model.cameraClip(at: e.wallTime)) { ref in
                                 playing = PlayingClip(url: model.videoURL(ref), ref: ref, title: model.game.summary(e))
                             }
                                 .swipeActions(edge: .leading) {
@@ -140,6 +141,30 @@ struct SoccerScorebookView: View {
                 }
                 .font(.footnote.bold())
                 .disabled(model.hud.status == .connecting)
+            }
+            if model.drivesLens, model.hud.isOn {
+                HStack {
+                    Button {
+                        model.toggleRecording()
+                    } label: {
+                        Label(model.isRecording ? "Stop video" : "Record match video",
+                              systemImage: model.isRecording ? "stop.circle.fill" : "record.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(model.isRecording ? .red : .accentColor)
+                    .font(.footnote.bold())
+                    .accessibilityIdentifier("soccerRecordButton")
+                    if let r = model.hud.recording {
+                        Text("● \(ScorebookView.clock(r.seconds)) · \(String(format: "%.0f", r.fps)) fps · \(r.frames) frames")
+                            .font(.caption.monospacedDigit()).foregroundStyle(.red)
+                    } else if !model.recording.segments.isEmpty {
+                        Text("\(model.recording.segments.count) video file(s) for this match")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if let err = model.hud.recording?.error ?? model.recordingError {
+                    Text(err).font(.caption2).foregroundStyle(.red)
+                }
             }
             if model.hud.isActive, wearables.mockModel == .metaRayBanDisplay, let mock = wearables.mockGlasses {
                 MockLensPreview(glasses: mock)
@@ -285,7 +310,10 @@ struct SoccerScoreboard: View {
 struct SoccerEventRow: View {
     let game: SoccerGame
     let event: SoccerEvent
-    var clip: VideoRef? = nil
+    /// The glasses clip (event.videoRefs) has finished recording.
+    var glassesReady = false
+    /// Clip from an imported camera video, when one covers this moment.
+    var camera: VideoRef? = nil
     var onPlay: (VideoRef) -> Void = { _ in }
 
     var body: some View {
@@ -307,14 +335,30 @@ struct SoccerEventRow: View {
                 Text("confidence \(Int(event.confidence * 100))% · swipe right to confirm, left to reject")
                     .font(.caption2).foregroundStyle(.orange)
             }
-            if let clip {
-                Button {
-                    onPlay(clip)
-                } label: {
-                    Label("Camera clip \(ScorebookView.clock(clip.start))–\(ScorebookView.clock(clip.end))", systemImage: "video")
-                        .font(.caption)
+            HStack(spacing: 14) {
+                if let ref = event.videoRefs.first {
+                    if glassesReady {
+                        Button {
+                            onPlay(ref)
+                        } label: {
+                            Label("Glasses \(ScorebookView.clock(ref.start))–\(ScorebookView.clock(ref.end))", systemImage: "eyeglasses")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                    } else {
+                        Label("Glasses clip ready when video stops", systemImage: "film")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
-                .buttonStyle(.borderless)
+                if let camera {
+                    Button {
+                        onPlay(camera)
+                    } label: {
+                        Label("Camera \(ScorebookView.clock(camera.start))–\(ScorebookView.clock(camera.end))", systemImage: "video")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                }
             }
         }
     }

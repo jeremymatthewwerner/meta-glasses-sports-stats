@@ -420,18 +420,8 @@ final class ScorebookModel {
 
     /// Stitches the finished clips of `events` into one reel; returns its file.
     func makeReel(title: String, events: [FootballEvent]) async throws -> URL {
-        let pieces = events.compactMap { e -> ReelExporter.Piece? in
-            guard let ref = e.videoRefs.first, clipIsReady(ref) else { return nil }
-            return ReelExporter.Piece(url: clipURL(ref), start: ref.start, end: ref.end)
-        }
-        let slug = title.lowercased()
-            .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
-            .joined(separator: "-")
-        let stamp = Int(Date().timeIntervalSince1970)
-        let url = gameFolder.appendingPathComponent("reels", isDirectory: true)
-            .appendingPathComponent("reel-\(slug.isEmpty ? "plays" : slug)-\(stamp).mov")
-        _ = try await ReelExporter.export(pieces, to: url)
-        return url
+        let refs = events.compactMap { e in e.videoRefs.first.flatMap { clipIsReady($0) ? $0 : nil } }
+        return try await ReelExporter.makeReel(title: title, refs: refs, folder: gameFolder)
     }
 
     // MARK: Player cues
