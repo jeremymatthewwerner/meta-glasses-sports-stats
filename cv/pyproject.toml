@@ -11,6 +11,8 @@ dependencies = [
   "timm",                 # Apache-2.0; PARSeq jersey-number reader (via torch.hub, baudm/parseq)
   "pytorch-lightning",    # Apache-2.0; required by PARSeq's hub entry
   "nltk",                 # Apache-2.0; imported by PARSeq (edit distance)
+  "transformers>=4.40",
+  "onnxruntime>=1.17",    # MIT; runs InsightFace buffalo_l (weights: non-commercial, downloaded at run time)   # Apache-2.0; CLIP (MIT weights) for player/official/sideline roles
   "numpy",
 ]
 

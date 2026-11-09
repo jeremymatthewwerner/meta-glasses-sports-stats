@@ -26,6 +26,8 @@ import supervision as sv
 from .game import Clip, Game, Play
 from .activity import MotionMeter, find_action, refined_window
 from .jersey import match_play
+from .faces import source_of
+from .roles import is_player
 from .teams import TeamModel, cluster_two, lab_to_hex, map_sides, track_color
 from .tracks import CropKeeper, TrackBook, crop_score
 from .video import frames, probe
@@ -88,9 +90,12 @@ def slug(text: str, limit: int = 40) -> str:
 
 
 def process_clip(video: Path, clip: Clip, out: Path, detector, sample_fps: float = 5.0,
-                 min_track_frames: int = 3, reader=None, extra: dict | None = None) -> tuple[int, float, list[dict]]:
+                 min_track_frames: int = 3, reader=None, extra: dict | None = None,
+                 roles=None, faces=None, source: str = "other") -> tuple[int, float, list[dict]]:
     """Detect + track people in one clip (and read jersey numbers when a
-    `reader` is given). Returns (frames, mean people/frame, tracks); fills
+    `reader` is given, and tell players from officials and sideline people
+    when `roles` is given, and match faces against an enrolled store when
+    `faces` is given and allowed for this `source`). Returns (frames, mean people/frame, tracks); fills
     `extra` with the action segment and the refined clip window."""
     from trackers import ByteTrackTracker
 
@@ -144,6 +149,7 @@ def process_clip(video: Path, clip: Clip, out: Path, detector, sample_fps: float
         if int(f.stem.split("-")[1]) not in keep:
             f.unlink()
     tracks = [s.to_json() | {"crop": f"crops/track-{s.track_id}.jpg"} for s in summaries]
+    use_faces = faces is not None and faces.allowed(source)
     for t in tracks:
         crops_t = keeper.best(t["track_id"])
         # Every kept crop (different moments) for training data; best-scored first.
@@ -154,9 +160,17 @@ def process_clip(video: Path, clip: Clip, out: Path, detector, sample_fps: float
         t["views"] = [f"crops/track-{t['track_id']}/{k}.jpg" for k in range(len(crops_t))]
         lab = track_color(crops_t)
         t["color"] = None if lab is None else {"lab": [round(float(v), 1) for v in lab], "hex": lab_to_hex(lab)}
+        if roles is not None:
+            t["role"] = roles.classify(crops_t)
+        if use_faces and t.get("role", {}).get("role") != "official":
+            t["face"] = faces.identify(crops_t)
         if reader is not None:
-            v, readings = reader.read_track(crops_t)
-            t["jersey"] = v.to_json() | {"raw": [r.raw for r in readings][:12]}
+            if t.get("role", {}).get("role") == "official":      # stripes read as digits
+                t["jersey"] = {"number": None, "confidence": 0.0, "support": 0, "reads": 0, "raw": [],
+                               "skipped": "official"}
+            else:
+                v, readings = reader.read_track(crops_t)
+                t["jersey"] = v.to_json() | {"raw": [r.raw for r in readings][:12]}
     (out / "tracks.json").write_text(json.dumps(tracks, indent=2))
     segment = find_action(meter.samples)
     window = refined_window(segment, clip.start, clip.end)
@@ -169,7 +183,7 @@ def process_clip(video: Path, clip: Clip, out: Path, detector, sample_fps: float
 
 
 def process_game(game: Game, out_root: Path, detector, sample_fps: float = 5.0,
-                 log=print, reader=None) -> Path:
+                 log=print, reader=None, roles=None, faces=None) -> Path:
     out = out_root / game.id
     out.mkdir(parents=True, exist_ok=True)
     results: list[PlayResult] = []
@@ -184,7 +198,7 @@ def process_game(game: Game, out_root: Path, detector, sample_fps: float = 5.0,
         t0 = time.monotonic()
         extra: dict = {}
         n, mean_people, tracks = process_clip(video, play.clip, folder, detector, sample_fps, reader=reader,
-                                              extra=extra)
+                                              extra=extra, roles=roles, faces=faces, source=source_of(play.clip.asset))
         r = PlayResult(play, folder, n, mean_people, tracks, time.monotonic() - t0, action=extra)
         if reader is not None:
             r.matches = match_play(play.players, tracks)
@@ -211,8 +225,9 @@ def _lab(t: dict):
 def assign_teams(results: list[PlayResult]) -> TeamModel | None:
     """Game-level team colors: cluster every track's jersey color into two,
     name the clusters home/away from number-matched calls, label each track,
-    then redo the matching with teams known. Rewrites each play's tracks.json."""
-    colored = [(t, _lab(t)) for r in results for t in r.tracks if _lab(t) is not None]
+    then redo the matching with teams known. Officials and sideline people
+    stay out of the team colors. Rewrites each play's tracks.json."""
+    colored = [(t, _lab(t)) for r in results for t in r.tracks if _lab(t) is not None and is_player(t)]
     if len(colored) < 2:
         return None
     centers = cluster_two([lab for _, lab in colored], [t.get("frames", 1) for t, _ in colored])
@@ -227,7 +242,7 @@ def assign_teams(results: list[PlayResult]) -> TeamModel | None:
     model = TeamModel(centers, sides, evidence)
     for r in results:
         for t in r.tracks:
-            t["team"] = model.assign(_lab(t))
+            t["team"] = model.assign(_lab(t)) if is_player(t) else {"cluster": None, "team": None, "unsure": True}
         if r.matches is not None:
             r.matches = match_play(r.play.players, r.tracks)
         (r.folder / "tracks.json").write_text(json.dumps(r.tracks, indent=2))
@@ -243,6 +258,13 @@ def team_lines(teams: dict | None) -> list[str]:
         ev = ", ".join(f"{n}× {s}" for s, n in v["evidence"].items()) or "no matched numbers"
         parts.append(f"{k} {v['color']} → {side} ({ev})")
     return ["Team colors: " + "; ".join(parts) + ".", ""]
+
+
+def track_count(tracks: list[dict]) -> str:
+    """"14" or "14 (2 officials, 1 sideline)"."""
+    n = {k: sum((t.get("role") or {}).get("role") == k for t in tracks) for k in ("official", "sideline")}
+    extra = ", ".join(f"{v} {k}{'s' if k == 'official' and v != 1 else ''}" for k, v in n.items() if v)
+    return f"{len(tracks)} ({extra})" if extra else str(len(tracks))
 
 
 def render_markdown(report: dict) -> str:
@@ -263,7 +285,8 @@ def render_markdown(report: dict) -> str:
         if m is None:
             found = "–"
         else:
-            parts = [f"#{x['jersey']} → track {x['track_id']} ({x['confidence']:.2f})"
+            parts = [f"#{x['jersey']} → track {x['track_id']} ({x['confidence']:.2f}"
+                     + (", face" if x.get("via") == "face" else "") + (", face ✓" if x.get("face_confirmed") else "") + ")"
                      + (" ⚠ other team's colors" if x.get("team_conflict") else "") for x in m["matched"]]
             parts += [f"#{x['jersey']} not seen" for x in m["missing"]]
             found = "; ".join(parts) or "–"
@@ -273,7 +296,7 @@ def render_markdown(report: dict) -> str:
                                        + (f" → clip {refined['start']:.1f}–{refined['end']:.1f}s" if refined else ""))
         lines.append(
             f"| {p['index']} | {p['transcript'] or p['kind']} | {c['asset']} {c['start']:.1f}–{c['end']:.1f}s "
-            f"| {action} | {p['sampled_frames']} | {p['mean_people_per_frame']} | {len(p['tracks'])} | {called} | {found} |"
+            f"| {action} | {p['sampled_frames']} | {p['mean_people_per_frame']} | {track_count(p['tracks'])} | {called} | {found} |"
         )
     lines += ["", "Each play folder has `annotated.mp4`, `tracks.json` and `crops/` (best crop per track)."]
     return "\n".join(lines) + "\n"

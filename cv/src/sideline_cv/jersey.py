@@ -55,11 +55,28 @@ def to_reading(label: str, char_confs: list[float]) -> Reading:
     return Reading(int("".join(c for c, _ in digits)), round(conf, 4), label)
 
 
+# Off-the-shelf PARSeq "finds" digits in shirt seams, logos and coaches'
+# jackets, mostly at low confidence and above all a lone "1" (even at 0.8+).
+# On hand-labeled youth-football tracks (2026-11-08) these two floors cut
+# wrong numbers from 26 of 41 tracks to 2 without losing a correct one.
+MIN_READ_CONFIDENCE = 0.5
+MIN_LONE_ONE_CONFIDENCE = 0.95
+
+
+def credible(r: Reading) -> bool:
+    if r.number is None:
+        return False
+    floor = MIN_LONE_ONE_CONFIDENCE if r.number == 1 and r.raw.strip() in ("1", "#1") else MIN_READ_CONFIDENCE
+    return r.confidence >= floor
+
+
 def best_reading(readings: list[Reading]) -> Reading:
-    """The most confident reading that found a number (or an empty one)."""
-    numbered = [r for r in readings if r.number is not None]
+    """The most confident credible reading (or an empty one, keeping the raw
+    text of the best reading for the record)."""
+    numbered = [r for r in readings if credible(r)]
     if not numbered:
-        return Reading(None, 0.0, readings[0].raw if readings else "")
+        raw = max(readings, key=lambda r: r.confidence).raw if readings else ""
+        return Reading(None, 0.0, raw)
     return max(numbered, key=lambda r: r.confidence)
 
 
@@ -160,10 +177,26 @@ def match_play(called: list[CalledPlayer], tracks: list[dict], min_confidence: f
         a = t.get("team") or {}
         return None if a.get("unsure", True) else a.get("team")
 
+    # Enrolled faces carry a jersey: a track whose face matched a person
+    # wearing #22 stands in for an unreadable number, and confirms a read one.
+    by_face: dict[int, list[dict]] = defaultdict(list)
+    for t in tracks:
+        f = t.get("face") or {}
+        if f.get("person") and f.get("jersey") is not None:
+            by_face[int(f["jersey"])].append(t)
+
     called_numbers = [c.jersey for c in called]
     matched, missing = [], []
     for c in called:
         ts = by_number.get(c.jersey)
+        if not ts and by_face.get(c.jersey):
+            best = max(by_face[c.jersey], key=lambda t: (t["face"]["similarity"], t.get("frames", 0)))
+            matched.append({
+                "team": c.team, "jersey": c.jersey, "role": c.role, "track_id": best["track_id"],
+                "confidence": best["face"]["similarity"], "crop": best.get("crop"), "track_team": track_team(best),
+                "team_conflict": False, "ambiguous": False, "via": "face", "person": best["face"]["person"],
+            })
+            continue
         if not ts:
             missing.append({"team": c.team, "jersey": c.jersey, "role": c.role})
             continue
@@ -179,6 +212,7 @@ def match_play(called: list[CalledPlayer], tracks: list[dict], min_confidence: f
             "track_team": tt,
             "team_conflict": tt is not None and tt != c.team,
             "ambiguous": same_number_both_teams and tt is None,
+            "face_confirmed": (best.get("face") or {}).get("jersey") == c.jersey,
         })
     unexpected = [
         {"track_id": t["track_id"], "jersey": n, "confidence": t["jersey"]["confidence"]}

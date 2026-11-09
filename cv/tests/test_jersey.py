@@ -58,7 +58,7 @@ def test_match_play_matched_missing_unexpected():
     m = match_play(called, tracks)
     assert m["matched"] == [{"team": "home", "jersey": 22, "role": "ballCarrier", "track_id": 3,
                              "confidence": 0.9, "crop": "crops/track-3.jpg", "track_team": None,
-                             "team_conflict": False, "ambiguous": False}]
+                             "team_conflict": False, "ambiguous": False, "face_confirmed": False}]
     assert m["missing"] == [{"team": "away", "jersey": 54, "role": "tacklers"}]   # 0.3 is below the bar
     assert [u["jersey"] for u in m["unexpected"]] == [11]
 
@@ -107,6 +107,17 @@ def test_torso_windows_and_best_reading():
     r = best_reading([Reading(None, 0, "SPB"), Reading(2, 0.7, "2"), Reading(22, 0.4, "22")])
     assert r.number == 2
     assert best_reading([Reading(None, 0, "AD")]).number is None
+
+
+def test_weak_reads_and_lone_ones_are_not_credible():
+    from sideline_cv.jersey import best_reading
+
+    # Seam/jacket noise: low-confidence digits, and the recognizer's favorite, a lone "1".
+    assert best_reading([Reading(7, 0.45, "7"), Reading(None, 0, "THE")]).number is None
+    assert best_reading([Reading(1, 0.89, "1"), Reading(None, 0, "S")]).number is None
+    assert best_reading([Reading(1, 0.97, "1")]).number == 1        # a clear #1 still reads
+    assert best_reading([Reading(1, 0.6, "#1"), Reading(10, 0.96, "10")]).number == 10
+    assert best_reading([Reading(11, 0.7, "11")]).number == 11      # two digits use the normal floor
 
 
 def test_vote_min_support_rejects_one_off_reads():
