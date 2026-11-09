@@ -94,7 +94,18 @@ Scorebook ⋯ → **Switch to soccer** (and back to football from the soccer men
 - **Stats:** team shots (on target), saves, corners, fouls, offsides and cards, and per-player goals, assists, shots, saves, fouls and cards. **Game summary** has a written recap and the goals with minutes and running score. Rosters put names on numbers.
 - **Lens:** score, period and minute, the last event with Confirm / Call / Undo / Redo (no play-clock button in soccer).
 - **Library:** soccer games have their own section with a game page (recap, goals, team stats) and **Open in scorebook**.
-- **Not in soccer yet:** game-mode video and clips, gallery and reels, web export, spoken cues, and CV import. The engine is `Soccer/` in SidelineCore (`SoccerGame`, `SoccerVoiceParser`, stats, recap, `SoccerHUD`).
+- **Not in soccer yet:** glasses game-mode video, gallery and reels, web export, spoken cues, and CV import. Camera videos can be imported (below). The engine is `Soccer/` in SidelineCore (`SoccerGame`, `SoccerVoiceParser`, stats, recap, `SoccerHUD`).
+
+## Game videos from another camera (Veo, phone on a tripod)
+
+Scorebook ⋯ → **Game videos…** → **Import a game video…** (football and soccer). Pick any video file: a Veo download (the follow-cam MP4), a phone recording from the stands, any camera. The app copies it into the game's folder and lines it up with the game log:
+
+- **Whistles:** it listens to the video's audio for referee whistles (a strong 2–4.8 kHz tone; a pea whistle's warble is allowed for) and matches them to logged moments: each football play's call comes a few seconds after the whistle that ended the play; a soccer kickoff or half-time tap lands on the whistle; fouls, offsides and cards are called just after one. The offset where the most events line up wins.
+- **Fallbacks:** a phone video's recording time is the first guess (whistles override it when they agree on another offset); with neither, the video is assumed to start at the first event.
+- **Check and fix:** the screen says how it was synced ("Synced by whistles: 14 of 18 events line up"), lists logged events with their camera clip to spot-check, and has **−10 s / −1 s / +1 s / +10 s** shifts and **Re-sync with whistles** (useful after logging more of the game). Whistle times are saved next to the video, so re-syncing doesn't re-read the audio.
+- **Clips:** every event the video covers gets a **Camera clip** button (football: 15 s before the call to 2 s after; soccer: 20 s before to 4 s after). Clips follow any shift or re-sync.
+- Glasses recordings have no audio track, so they can't be matched to the imported video sound-to-sound; both are placed on the game's wall clock instead.
+- Not yet: camera clips in the gallery, reels and web export; CV on the imported video.
 
 ## CV results from the Mac
 

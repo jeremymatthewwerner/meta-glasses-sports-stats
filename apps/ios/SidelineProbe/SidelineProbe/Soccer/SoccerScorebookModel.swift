@@ -26,16 +26,23 @@ final class SoccerScorebookModel {
     }
     /// Whether this scorebook (not football's) currently drives the lens.
     private(set) var drivesLens = false
+    /// Imported camera videos for this game.
+    private(set) var recording: GameRecording
+    var videoStatus: String?
+    var importingVideo = false
 
     init(hud: GlassesHUD, speech: SpeechTranscriber) {
         self.hud = hud
         self.speech = speech
+        let loaded: SoccerGame
         if let saved = Self.loadLatest() {
-            game = saved.game
+            loaded = saved.game
             log = saved.log
         } else {
-            game = SoccerGame(home: TeamInfo(name: "Home"), away: TeamInfo(name: "Away"), format: .nineASide)
+            loaded = SoccerGame(home: TeamInfo(name: "Home"), away: TeamInfo(name: "Away"), format: .nineASide)
         }
+        game = loaded
+        recording = GameFiles.recording(for: loaded.id)
         refreshLibrary()
     }
 
@@ -164,6 +171,8 @@ final class SoccerScorebookModel {
         log = []
         redoStack = []
         lastParse = nil
+        recording = GameRecording(gameID: game.id)
+        videoStatus = nil
         save()
         refreshLibrary()
     }
@@ -198,6 +207,8 @@ final class SoccerScorebookModel {
         save()
         game = target
         log = GameFiles.utterances(for: id)
+        recording = GameFiles.recording(for: id)
+        videoStatus = nil
         redoStack = []
         lastParse = nil
         save()                       // most recent → reopens next launch
@@ -271,5 +282,23 @@ final class SoccerScorebookModel {
     private static func loadLatest() -> (game: SoccerGame, log: [UtteranceLogEntry])? {
         guard let newest = GameFiles.all(SoccerGame.self).first else { return nil }
         return (newest.game, GameFiles.utterances(for: newest.game.id))
+    }
+}
+
+// MARK: - Imported camera videos
+
+extension SoccerScorebookModel: GameVideoHost {
+    var gameFolder: URL { GameFiles.folder(for: game.id) }
+    var syncAnchors: [SyncAnchor] { game.syncAnchors }
+    var firstEventDate: Date? { game.activeEvents.first?.wallTime }
+    var clipPolicy: ClipPolicy { .soccer }
+
+    func setRecording(_ recording: GameRecording) {
+        self.recording = recording
+        GameFiles.saveRecording(recording)
+    }
+
+    var syncCheckEvents: [(id: UUID, title: String, date: Date)] {
+        game.activeEvents.prefix(60).map { ($0.id, game.summary($0), $0.wallTime) }
     }
 }

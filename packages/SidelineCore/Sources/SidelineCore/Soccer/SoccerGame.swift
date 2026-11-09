@@ -199,7 +199,7 @@ public struct SoccerGame: Codable, Sendable, Equatable, Identifiable {
             s.periodStartedAt = nil
         case .card:
             guard let n = a.player else { break }
-            if a.card == .yellow {
+            if a.card == .yellow || a.card == nil {        // a card of unknown colour counts as yellow
                 s.yellows[a.team, default: [:]][n, default: 0] += 1
                 if s.yellows[a.team]?[n] ?? 0 >= 2 { s.sentOff[a.team, default: []].insert(n) }
             } else {

@@ -1,4 +1,5 @@
 import Foundation
+import SidelineCore
 
 /// Saved games of every sport share one folder: Documents/games/<id>.json
 /// plus <id>-utterances.json (and a <id>/ folder for videos). A file decodes
@@ -50,6 +51,23 @@ enum GameFiles {
             try encoder.encode(log).write(to: utterancesFile(for: id), options: .atomic)
         } catch {
             print("[GameFiles] save failed: \(error)")
+        }
+    }
+
+    static func folder(for id: UUID) -> URL { directory.appendingPathComponent(id.uuidString, isDirectory: true) }
+
+    /// Video files for a game (glasses recordings and imported camera videos).
+    static func recording(for id: UUID) -> GameRecording {
+        let url = folder(for: id).appendingPathComponent("recording.json")
+        return (try? Data(contentsOf: url)).flatMap { try? decoder.decode(GameRecording.self, from: $0) } ?? GameRecording(gameID: id)
+    }
+
+    static func saveRecording(_ r: GameRecording) {
+        do {
+            try FileManager.default.createDirectory(at: folder(for: r.gameID), withIntermediateDirectories: true)
+            try encoder.encode(r).write(to: folder(for: r.gameID).appendingPathComponent("recording.json"), options: .atomic)
+        } catch {
+            print("[GameFiles] recording save failed: \(error)")
         }
     }
 

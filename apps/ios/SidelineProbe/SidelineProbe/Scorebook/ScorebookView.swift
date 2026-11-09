@@ -16,6 +16,7 @@ struct ScorebookView: View {
     @State private var showRosters = false
     @State private var importingCV = false
     @State private var showSummary = false
+    @State private var showVideos = false
     @FocusState private var typing: Bool
 
     var body: some View {
@@ -50,7 +51,8 @@ struct ScorebookView: View {
                                 .foregroundStyle(.secondary)
                         }
                         ForEach(model.game.events.reversed()) { event in
-                            EventRow(event: event, clipReady: event.videoRefs.first.map(model.clipIsReady) ?? false) { ref in
+                            EventRow(event: event, clipReady: event.videoRefs.first.map(model.clipIsReady) ?? false,
+                                     camera: model.cameraClip(at: event.wallTime)) { ref in
                                 playingClip = PlayingClip(url: model.clipURL(ref), ref: ref, title: event.summary)
                             }
                                 .swipeActions(edge: .leading) {
@@ -78,6 +80,7 @@ struct ScorebookView: View {
                         Divider()
                         Button("New game…") { showNewGame = true }
                         Button("Rosters…") { showRosters = true }
+                        Button("Game videos…") { showVideos = true }
                         Button("Import CV results…") { importingCV = true }
                         Button("Game summary") { showSummary = true }
                         Button(model.game.isOver ? "Reopen game" : "End game") { model.setEnded(!model.game.isOver) }
@@ -109,6 +112,7 @@ struct ScorebookView: View {
             .sheet(isPresented: $showHelp) { PhraseHelpView() }
             .sheet(item: $playingClip) { ClipPlayerView(clip: $0) }
             .sheet(isPresented: $showRosters) { RosterEditorView() }
+            .sheet(isPresented: $showVideos) { GameVideosView(host: model) }
             .sheet(isPresented: $showSummary) {
                 NavigationStack {
                     GameSummaryView(game: model.game)
@@ -309,6 +313,8 @@ struct Scoreboard: View {
 struct EventRow: View {
     let event: FootballEvent
     var clipReady = false
+    /// Clip from an imported camera video, when one covers this play.
+    var camera: VideoRef? = nil
     var onPlayClip: (VideoRef) -> Void = { _ in }
 
     var body: some View {
@@ -345,6 +351,15 @@ struct EventRow: View {
                     Label("Clip \(ScorebookView.clock(ref.start))–\(ScorebookView.clock(ref.end)) · ready when video stops",
                           systemImage: "film").font(.caption2).foregroundStyle(.secondary)
                 }
+            }
+            if let camera {
+                Button {
+                    onPlayClip(camera)
+                } label: {
+                    Label("Camera clip \(ScorebookView.clock(camera.start))–\(ScorebookView.clock(camera.end))", systemImage: "video")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
             }
         }
     }
@@ -464,7 +479,7 @@ struct ClipPlayerView: View {
         NavigationStack {
             VStack(spacing: 12) {
                 VideoPlayer(player: player)
-                    .aspectRatio(504.0 / 896.0, contentMode: .fit)
+                    .frame(maxHeight: 520)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 Text("\(clip.ref.assetID) · \(ScorebookView.clock(clip.ref.start))–\(ScorebookView.clock(clip.ref.end))")
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)

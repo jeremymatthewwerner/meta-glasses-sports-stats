@@ -33,6 +33,15 @@ struct SidelineProbeApp: App {
                 .task {
                     wearables.start()
                     #if DEBUG
+                    // `-importVideo /path/to/game.mp4` imports a camera video into the open game (testing).
+                    if let path = UserDefaults.standard.string(forKey: "importVideo") {
+                        let url = URL(fileURLWithPath: path)
+                        if UserDefaults.standard.string(forKey: "sport") == Sport.soccer.rawValue {
+                            await soccer.importVideo(from: url)
+                        } else {
+                            await scorebook.importVideo(from: url)
+                        }
+                    }
                     // `-mockGlasses metaRayBanDisplay` (launch argument) pairs a mock
                     // with the bundled field video, for simulator testing.
                     if let raw = UserDefaults.standard.string(forKey: "mockGlasses"),

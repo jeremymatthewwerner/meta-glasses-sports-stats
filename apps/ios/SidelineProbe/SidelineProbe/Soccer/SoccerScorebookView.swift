@@ -13,8 +13,10 @@ struct SoccerScorebookView: View {
     @State private var sheet: Sheet?
     @FocusState private var typing: Bool
 
+    @State private var playing: PlayingClip?
+
     enum Sheet: String, Identifiable {
-        case newGame, box, summary, help, rosters
+        case newGame, box, summary, help, rosters, videos
         var id: String { rawValue }
     }
 
@@ -47,7 +49,9 @@ struct SoccerScorebookView: View {
                                 .foregroundStyle(.secondary)
                         }
                         ForEach(model.game.events.reversed()) { e in
-                            SoccerEventRow(game: model.game, event: e)
+                            SoccerEventRow(game: model.game, event: e, clip: model.cameraClip(at: e.wallTime)) { ref in
+                                playing = PlayingClip(url: model.videoURL(ref), ref: ref, title: model.game.summary(e))
+                            }
                                 .swipeActions(edge: .leading) {
                                     Button { model.confirm(e.id) } label: { Label("Confirm", systemImage: "checkmark") }
                                         .tint(.green)
@@ -73,6 +77,7 @@ struct SoccerScorebookView: View {
                         Divider()
                         Button("New game…") { sheet = .newGame }
                         Button("Rosters…") { sheet = .rosters }
+                        Button("Game videos…") { sheet = .videos }
                         Button("Game summary") { sheet = .summary }
                         Button(model.game.isOver ? "Reopen game" : "End game") { model.setEnded(!model.game.isOver) }
                         Button("Confirm all proposed") { model.confirmAll() }
@@ -106,8 +111,10 @@ struct SoccerScorebookView: View {
                 case .summary: SoccerSummaryView(game: model.game)
                 case .help: SoccerHelpView()
                 case .rosters: SoccerRosterView()
+                case .videos: GameVideosView(host: model)
                 }
             }
+            .sheet(item: $playing) { ClipPlayerView(clip: $0) }
             .task {
                 // The lens shows the match minute; refresh it as the minute turns.
                 while !Task.isCancelled {
@@ -278,6 +285,8 @@ struct SoccerScoreboard: View {
 struct SoccerEventRow: View {
     let game: SoccerGame
     let event: SoccerEvent
+    var clip: VideoRef? = nil
+    var onPlay: (VideoRef) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -297,6 +306,15 @@ struct SoccerEventRow: View {
             if event.confidence < 0.9, event.status == .proposed {
                 Text("confidence \(Int(event.confidence * 100))% · swipe right to confirm, left to reject")
                     .font(.caption2).foregroundStyle(.orange)
+            }
+            if let clip {
+                Button {
+                    onPlay(clip)
+                } label: {
+                    Label("Camera clip \(ScorebookView.clock(clip.start))–\(ScorebookView.clock(clip.end))", systemImage: "video")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
             }
         }
     }

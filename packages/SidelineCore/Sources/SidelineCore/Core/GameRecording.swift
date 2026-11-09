@@ -16,15 +16,22 @@ public struct GameRecording: Codable, Sendable, Equatable {
         public var endedAt: Date?
         public var frames: Int
         public var source: String          // e.g. "Meta Ray-Ban Display, HEVC 504x896 @15"
+        /// Set for a video imported from another camera (Veo, phone on a
+        /// tripod): how it was lined up with the game. `startedAt` is its
+        /// synced first frame.
+        public var sync: VideoSync?
 
         public var id: String { file }
+        public var isImported: Bool { sync != nil }
 
-        public init(file: String, startedAt: Date, endedAt: Date? = nil, frames: Int = 0, source: String) {
+        public init(file: String, startedAt: Date, endedAt: Date? = nil, frames: Int = 0, source: String,
+                    sync: VideoSync? = nil) {
             self.file = file
             self.startedAt = startedAt
             self.endedAt = endedAt
             self.frames = frames
             self.source = source
+            self.sync = sync
         }
 
         public var duration: TimeInterval? { endedAt.map { $0.timeIntervalSince(startedAt) } }
@@ -40,7 +47,20 @@ public struct GameRecording: Codable, Sendable, Equatable {
 
     /// Next unused segment file name ("glasses-01.mov", "glasses-02.mov", …).
     public var nextFileName: String {
-        String(format: "glasses-%02d.mov", segments.count + 1)
+        String(format: "glasses-%02d.mov", segments.filter { !$0.isImported }.count + 1)
+    }
+
+    /// Next name for an imported video ("camera-01.mp4", …), keeping its extension.
+    public func nextImportName(extension ext: String) -> String {
+        String(format: "camera-%02d.%@", segments.filter(\.isImported).count + 1, ext.isEmpty ? "mp4" : ext.lowercased())
+    }
+
+    /// Re-times an imported video (after a manual nudge or a new sync).
+    public mutating func setSync(_ sync: VideoSync, for file: String) {
+        guard let i = segments.firstIndex(where: { $0.file == file }), let d = segments[i].duration else { return }
+        segments[i].sync = sync
+        segments[i].startedAt = sync.videoStart
+        segments[i].endedAt = sync.videoStart.addingTimeInterval(d)
     }
 }
 

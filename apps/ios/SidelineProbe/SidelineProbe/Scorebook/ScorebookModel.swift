@@ -37,8 +37,11 @@ final class ScorebookModel {
     @ObservationIgnored private lazy var lensCall = LensCallController(hud: hud, phone: speech) { [weak self] text, startedAt in
         self?.submitFromLens(text, startedAt: startedAt)
     }
-    /// Game mode: the video files recorded for this game.
+    /// Game mode: the video files recorded for this game (and imported camera videos).
     private(set) var recording: GameRecording
+    /// Imported camera video: progress / result line.
+    var videoStatus: String?
+    var importingVideo = false
     /// When the phone mic button was pressed (clip anchor for phone calls).
     @ObservationIgnored private var phoneListenStartedAt = Date()
 
@@ -611,5 +614,22 @@ final class ScorebookModel {
     private static func loadLatest() -> (game: FootballGame, log: [UtteranceLogEntry])? {
         guard let newest = GameFiles.all(FootballGame.self).first else { return nil }
         return (newest.game, GameFiles.utterances(for: newest.game.id))
+    }
+}
+
+// MARK: - Imported camera videos
+
+extension ScorebookModel: GameVideoHost {
+    var syncAnchors: [SyncAnchor] { game.syncAnchors }
+    var firstEventDate: Date? { game.activeEvents.first?.wallTime }
+    var clipPolicy: ClipPolicy { .football }
+
+    func setRecording(_ recording: GameRecording) {
+        self.recording = recording
+        saveRecording()
+    }
+
+    var syncCheckEvents: [(id: UUID, title: String, date: Date)] {
+        game.activeEvents.filter { $0.play != nil }.prefix(40).map { ($0.id, $0.summary, $0.wallTime) }
     }
 }

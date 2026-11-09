@@ -166,7 +166,7 @@ extension SoccerGame {
             if let f = a.fouled { s += " on \(displayName(a.team.opponent, f))" }
             return s
         case .card:
-            let c = a.card == .yellow ? "Yellow card" : (a.card == .secondYellow ? "Second yellow, red card" : "Red card")
+            let c = a.card == .red ? "Red card" : (a.card == .secondYellow ? "Second yellow, red card" : "Yellow card")
             return "\(c) \(a.player != nil ? n(a.team, a.player) : team)" + (a.player != nil ? " (\(team))" : "")
         case .substitution:
             return "Sub \(team): \(n(a.team, a.player)) on" + (a.playerOff.map { " for \(displayName(a.team, $0))" } ?? "")
