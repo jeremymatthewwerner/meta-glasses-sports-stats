@@ -84,6 +84,18 @@ Spoken cues through the glasses' open-ear speakers (whatever the phone's audio i
 - **Web library (globe button on the Library tab):** builds a static website of every saved game: an index with season records, and a page per game with score by quarter, recap, leaders and every play, filterable by player and event type (touchdowns, turnovers, big plays…), each with its clip cut to an `.mp4`. Links like `…/index.html#player=home-22` open one player's plays. The site is zipped for the share sheet, and the unzipped copy is in Files → On My iPhone → SidelineProbe → `web`. Open `index.html` directly, or upload the folder to any static host (GitHub Pages, Netlify Drop, S3) to share it. No server or account needed. The renderer is `WebLibrary` in SidelineCore.
 - Games still live on the phone; automatic sync to a hosted library is a later step.
 
+## Soccer scorebook
+
+Scorebook ⋯ → **Switch to soccer** (and back to football from the soccer menu; the choice is remembered). The football and soccer scorebooks share the mic, speech recognition and the glasses lens.
+
+- **New soccer game:** team names, format (11v11 2×45 / 2×40 / 2×35, 9v9 2×30, 7v7 2×25, 4v4 in quarters) and **my team** (★). A call that names no team counts for your team; "they", "them", "away", "home" or a team's name means that side.
+- **Clock:** the big button goes Kickoff → Half time → Start 2nd half → Full time (or the quarters). The scoreboard shows the period and match minute ("2nd half · 43′"), and every event gets its minute.
+- **Calls** (mic, typed, or **Call play** on the lens): "goal 9, assist 7", "7 to 9, goal", "penalty goal 10", "own goal by their 4", "shot 10 saved by their 1", "9 shoots wide", "great save 1", "corner us", "foul by 14 on 6", "free kick for us", "yellow card 4 away", "second yellow 5", "12 on for 7", "offside 9", "half time", "undo" / "redo". Tap **?** for the full list. Quick buttons add a goal, shot or corner for either team with one tap.
+- **Stats:** team shots (on target), saves, corners, fouls, offsides and cards, and per-player goals, assists, shots, saves, fouls and cards. **Game summary** has a written recap and the goals with minutes and running score. Rosters put names on numbers.
+- **Lens:** score, period and minute, the last event with Confirm / Call / Undo / Redo (no play-clock button in soccer).
+- **Library:** soccer games have their own section with a game page (recap, goals, team stats) and **Open in scorebook**.
+- **Not in soccer yet:** game-mode video and clips, gallery and reels, web export, spoken cues, and CV import. The engine is `Soccer/` in SidelineCore (`SoccerGame`, `SoccerVoiceParser`, stats, recap, `SoccerHUD`).
+
 ## CV results from the Mac
 
 The `cv/` pipeline (see [cv/README.md](../../../cv/README.md)) writes a `report.json` per game. Put it in `games/<game id>/cv-report.json` (Files or Finder) and the app imports it on launch or when it returns to the foreground; or Scorebook ⋯ → **Import CV results…**. Plays then show "CV: #22 ✓ · #54 not seen" (⚠ when a number was read on the other team's colors), clips are trimmed to the detected action with the original kept, and the scoreboard shows team-color dots.

@@ -4,6 +4,8 @@ import SwiftUI
 /// Every saved game, the season view for a team, and each game's summary page.
 struct LibraryView: View {
     @Environment(ScorebookModel.self) private var model
+    @Environment(SoccerScorebookModel.self) private var soccer
+    @AppStorage("sport") private var sport = Sport.football
     @State private var pendingDelete: ScorebookModel.SavedGame?
 
     var body: some View {
@@ -28,11 +30,35 @@ struct LibraryView: View {
                         NavigationLink {
                             GameSummaryView(game: saved.game)
                         } label: {
-                            GameRow(game: saved.game, isOpen: saved.id == model.game.id)
+                            GameRow(game: saved.game, isOpen: saved.id == model.game.id && sport == .football)
                         }
                         .swipeActions {
                             if saved.id != model.game.id {
                                 Button("Delete", role: .destructive) { pendingDelete = saved }
+                            }
+                        }
+                    }
+                }
+                Section("Soccer games") {
+                    if soccer.library.isEmpty { Text("No soccer games yet.").foregroundStyle(.secondary) }
+                    ForEach(soccer.library) { g in
+                        NavigationLink {
+                            SoccerGameDetail(game: g)
+                                .toolbar {
+                                    if g.id != soccer.game.id || sport != .soccer {
+                                        Button("Open in scorebook") {
+                                            if sport == .football, model.hud.isActive { model.toggleHUD(deviceID: nil) }
+                                            soccer.openGame(g.id)
+                                            sport = .soccer
+                                        }
+                                    }
+                                }
+                        } label: {
+                            SoccerGameRow(game: g, isOpen: g.id == soccer.game.id && sport == .soccer)
+                        }
+                        .swipeActions {
+                            if g.id != soccer.game.id {
+                                Button("Delete", role: .destructive) { soccer.deleteGame(g.id) }
                             }
                         }
                     }
@@ -56,7 +82,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .onAppear { model.refreshLibrary() }
+            .onAppear { model.refreshLibrary(); soccer.refreshLibrary() }
             .alert("Delete this game?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                    presenting: pendingDelete) { saved in
                 Button("Delete game and videos", role: .destructive) { model.deleteGame(saved.id) }
@@ -250,4 +276,23 @@ struct SeasonView: View {
 
 extension Array {
     subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil }
+}
+
+/// One soccer game in the library list.
+private struct SoccerGameRow: View {
+    let game: SoccerGame
+    let isOpen: Bool
+
+    var body: some View {
+        let s = game.state
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Image(systemName: "soccerball").foregroundStyle(.secondary)
+                Text("\(game.home.name) \(s.goals(.home)) – \(s.goals(.away)) \(game.away.name)").font(.headline)
+                if isOpen { Text("open").font(.caption2.bold()).foregroundStyle(.tint) }
+            }
+            Text("\(game.date.formatted(date: .abbreviated, time: .omitted)) · \(game.isOver ? "Final" : "In progress") · \(game.format.label)")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
 }

@@ -44,6 +44,18 @@ public struct FootballHUD: Equatable, Sendable {
         redoPlay = redo.map { Self.truncate($0.summary, to: Self.maxPlayLength) }
     }
 
+    /// Lens content built by another sport (soccer uses the same lens layout).
+    public init(scoreLine: String, situationLine: String, lastPlay: String?, lastPlayID: UUID?,
+                lastPlayNeedsConfirm: Bool, pendingCount: Int, redoPlay: String? = nil) {
+        self.scoreLine = scoreLine
+        self.situationLine = situationLine
+        self.lastPlay = lastPlay
+        self.lastPlayID = lastPlayID
+        self.lastPlayNeedsConfirm = lastPlayNeedsConfirm
+        self.pendingCount = pendingCount
+        self.redoPlay = redoPlay
+    }
+
     static func shortName(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         return truncate(trimmed.isEmpty ? "TEAM" : trimmed.uppercased(), to: maxTeamName)

@@ -8,7 +8,8 @@ struct SidelineProbeApp: App {
     // so they only start observing SDK state in `.task` below.
     @State private var wearables = WearablesModel()
     @State private var runner = ProbeRunner()
-    @State private var scorebook = ScorebookModel()
+    @State private var scorebook: ScorebookModel
+    @State private var soccer: SoccerScorebookModel
 
     init() {
         do {
@@ -16,6 +17,10 @@ struct SidelineProbeApp: App {
         } catch {
             print("[SidelineProbe] Wearables.configure() failed: \(error)")
         }
+        // Both scorebooks share the speech recognizer and the glasses lens.
+        let football = ScorebookModel()
+        _scorebook = State(initialValue: football)
+        _soccer = State(initialValue: SoccerScorebookModel(hud: football.hud, speech: football.speech))
     }
 
     var body: some Scene {
@@ -24,6 +29,7 @@ struct SidelineProbeApp: App {
                 .environment(wearables)
                 .environment(runner)
                 .environment(scorebook)
+                .environment(soccer)
                 .task {
                     wearables.start()
                     #if DEBUG

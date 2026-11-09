@@ -6,6 +6,7 @@ import SwiftUI
 struct ScorebookView: View {
     @Environment(ScorebookModel.self) private var model
     @Environment(WearablesModel.self) private var wearables
+    @AppStorage("sport") private var sport = Sport.football
     @State private var typed = ""
     @State private var playingClip: PlayingClip?
     @State private var mockSay = "22 run for 7, tackle by 54"
@@ -70,6 +71,11 @@ struct ScorebookView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
+                        Button("Switch to soccer", systemImage: "soccerball") {
+                            if model.hud.isActive { model.toggleHUD(deviceID: nil) }   // let go of the lens
+                            sport = .soccer
+                        }
+                        Divider()
                         Button("New game…") { showNewGame = true }
                         Button("Rosters…") { showRosters = true }
                         Button("Import CV results…") { importingCV = true }

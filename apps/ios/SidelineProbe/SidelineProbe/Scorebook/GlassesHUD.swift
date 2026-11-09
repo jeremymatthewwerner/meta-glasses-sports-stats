@@ -442,7 +442,9 @@ final class GlassesHUD {
                     if hud.redoPlay != nil {
                         Button(label: "Redo", style: .outline, onClick: redo)
                     }
-                    Button(label: lens.clock == nil ? "Clock" : "Stop clock", style: .outline, onClick: clockToggle)
+                    if onClock != nil {        // football's play clock; soccer has none
+                        Button(label: lens.clock == nil ? "Clock" : "Stop clock", style: .outline, onClick: clockToggle)
+                    }
                 }
                 if case .note(let note) = lens.voice {
                     Text(note, style: .meta, color: .secondary)

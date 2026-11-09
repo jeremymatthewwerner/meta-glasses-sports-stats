@@ -607,24 +607,9 @@ final class ScorebookModel {
         }
     }
 
+    /// The most recently saved football game (soccer games in the same folder are skipped).
     private static func loadLatest() -> (game: FootballGame, log: [UtteranceLogEntry])? {
-        let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: gamesDirectory, includingPropertiesForKeys: [.contentModificationDateKey]) else {
-            return nil
-        }
-        let games = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix("-utterances.json") }
-        let newest = games.max { a, b in
-            let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            return da < db
-        }
-        guard let newest else { return nil }
-        let dec = JSONDecoder()
-        dec.dateDecodingStrategy = .iso8601
-        guard let data = try? Data(contentsOf: newest), let game = try? dec.decode(FootballGame.self, from: data) else { return nil }
-        let logURL = newest.deletingPathExtension().appendingPathExtension("json")
-            .deletingLastPathComponent().appendingPathComponent("\(game.id.uuidString)-utterances.json")
-        let log = (try? Data(contentsOf: logURL)).flatMap { try? dec.decode([UtteranceLogEntry].self, from: $0) } ?? []
-        return (game, log)
+        guard let newest = GameFiles.all(FootballGame.self).first else { return nil }
+        return (newest.game, GameFiles.utterances(for: newest.game.id))
     }
 }
